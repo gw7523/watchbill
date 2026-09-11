@@ -1,0 +1,60 @@
+{
+ "rig2": {
+  "host": "rig2",
+  "reachable": true,
+  "version": "0.8.2",
+  "protocol": 20,
+  "compatible": true,
+  "running": true,
+  "flavor": "pacman",
+  "herdr_path": "/usr/bin/herdr",
+  "live_handoff_flag": true,
+  "handoff_supported": false,
+  "agent_versions": {
+   "claude": "2.1.267",
+   "codex": "0.153.4"
+  },
+  "agent_flavors": {
+   "claude": "mise",
+   "codex": "mise"
+  }
+ },
+ "ser6": {
+  "host": "ser6",
+  "reachable": true,
+  "version": "0.8.2",
+  "protocol": 20,
+  "compatible": true,
+  "running": true,
+  "flavor": "pacman",
+  "herdr_path": "/usr/bin/herdr",
+  "live_handoff_flag": true,
+  "handoff_supported": false,
+  "agent_versions": {
+   "claude": "2.1.267",
+   "grok": "1.0.25"
+  },
+  "agent_flavors": {
+   "claude": "mise",
+   "grok": "npm"
+  }
+ },
+ "vps": {
+  "host": "vps",
+  "reachable": true,
+  "version": "0.8.2",
+  "protocol": 20,
+  "compatible": true,
+  "running": true,
+  "flavor": "official",
+  "herdr_path": "/home/u/.local/bin/herdr",
+  "live_handoff_flag": true,
+  "handoff_supported": true,
+  "agent_versions": {
+   "claude": "2.1.267"
+  },
+  "agent_flavors": {
+   "claude": "unknown"
+  }
+ }
+}
