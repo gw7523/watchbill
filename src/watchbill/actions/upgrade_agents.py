@@ -40,8 +40,14 @@ class UpgradeAgents(BaseAction):
 
     def blast_radius(self) -> BlastRadius:
         ks = self.kinds()
+        if not ks:
+            # no --kinds: park only kinds a probe can actually upgrade (union over hosts)
+            ks = tuple(sorted({k for p in self.ctx.probes.values() for k in p.agent_versions}))
         return BlastRadius(park_roles=frozenset({"agent"}), needs_session_stop=False, needs_client_attach=True,
-                           park_kinds=frozenset(ks) if ks else None)
+                           park_kinds=frozenset(ks))
+
+    def park_kinds_for(self, host: Host, probe: Probe) -> frozenset[str] | None:
+        return frozenset(self.kinds() or tuple(sorted(probe.agent_versions)))
 
     def commands(self, host: Host, probe: Probe) -> list[RemoteCmd]:
         kinds = self.kinds() or tuple(sorted(probe.agent_versions))

@@ -90,6 +90,26 @@ def test_agent_exit_after_prompt_is_a_failure(fleet, fleet_json, tmp_path):
     assert res.code == TRANSPORT and "vanished" in res.failed[0]
 
 
+def test_prompt_precondition_refuses_blocked_agent(fleet, fleet_json, tmp_path):
+    """Pitfall 12 at exec time: `agent get` says blocked → the prompt step fails, nothing is typed."""
+    from conftest import FakeSession
+
+    class Blocked(FakeSession):
+        def herdr(self, *args, timeout=30.0):
+            if args[:2] == ("agent", "get"):
+                self.calls.append(("herdr", *args))
+                return type(super().herdr("status", "server", "--json"))(args, 0, json.dumps({"id": "x", "result": {"agent": {"agent_status": "blocked"}}}))
+            return super().herdr(*args, timeout=timeout)
+    fs = Blocked(fleet.host("ser6"), "default", fleet_json, allow_mutation=True)
+    plan = Plan(verb="set", fleet="t", approved=True)
+    plan.add(Step(id="p", kind=StepKind.HERDR, host="ser6", session="default", description="prompt",
+                  argv=("herdr", "--session", "default", "agent", "prompt", "claude-x", "go"),
+                  raw=("agent", "prompt", "claude-x", "go"), mutating=True, via="herdr", precondition="agent_status != blocked"))
+    res = X.Executor(fleet, journal(tmp_path), run_id="r7", session_factory=lambda h, s: fs).run(plan)
+    assert res.code == TRANSPORT and "blocked" in res.failed[0]
+    assert not any(c[1:3] == ("agent", "prompt") for c in fs.calls)
+
+
 def test_journal_marks_set_complete_for_resume(fleet, tmp_path):
     plan = Plan(verb="relieve", fleet="t", approved=True)
     plan.add(Step(id="ser6.begin", kind=StepKind.JOURNAL, host="ser6", description="host-start x", mutating=True))

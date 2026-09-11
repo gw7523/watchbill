@@ -26,7 +26,10 @@ with a fallback path and must be probed before MVP.
 | `herdr agent wait <TARGET> [--until STATE]... [--timeout MS]` | Default matches idle, done, blocked. |
 | `herdr session list [--json]` / `session stop [--json] <NAME>` / `session attach <NAME>` / `session delete <NAME>` | `session stop default` stops the default session's server. It is not `server stop`. |
 | `herdr server stop` | Stops the running server via the API socket. Watchbill never emits it without `--force-server-stop`. |
-| `herdr workspace create [--cwd PATH] [--label TEXT] [--env K=V] [--focus\|--no-focus]` / `workspace close <id>` / `workspace list` | Labels are the durable half of `human_id`. |
+| `herdr workspace create [--cwd PATH] [--label TEXT] [--env K=V] [--focus\|--no-focus]` / `workspace close <id>` / `workspace list` | Labels are the durable half of `human_id`. Success result carries `workspace`, `tab`, `root_pane`. |
+| `herdr tab create [--workspace ID] [--cwd PATH] [--label TEXT] [--env K=V] [--focus\|--no-focus]` | Extra tabs in a restored workspace. |
+| `herdr pane split [PANE_ID] [--pane ID] [--current] [--direction right\|down] [--ratio F] [--cwd PATH] [--focus\|--no-focus]` | Positional pane id is used; `--current` never. |
+| `herdr pane send-text <PANE_ID> <TEXT>` / `herdr agent get <target>` | Park input and the pre-prompt blocked check. |
 | `herdr tab list --workspace <id>` | Tabs carry `label` and `number`. |
 | `herdr plugin install [--ref REF] [-y\|--yes] <OWNER/REPO[/SUBDIR]>` / `plugin list` / `plugin link [--disabled\|--enabled] <PATH>` / `plugin enable\|disable <ID>` / `plugin action list\|invoke` | `plugin list` is human text in 0.8.2 (`- <id> (<name>) enabled [local:/path]`); `plugin action list` is JSON. |
 | `herdr integration install <TARGET>` / `integration status` | Targets include claude, codex, cursor, opencode, hermes, grok. `status` prints `<kind>: current (vN) (<path>)` or `not installed`. |
@@ -92,7 +95,10 @@ flavor comes from the binary path and package owner:
 
 1. Headless session start on a remote host. Candidate: `herdr --session <name> server` (top-level help lists `herdr server` as "Run as headless server" and `--session` as a global flag). Fallback: per-host `start` command in `hosts.toml` (rig2/ser6 have a `herdr.service` user unit).
 2. Whether any client attach exists that does not need a TTY. Assumed no: `set` attaches a viewport by running `ssh -tt <target> herdr session attach <name>` in a cockpit pane (#2064).
-3. `layout.export` / `layout.apply` CLI exposure. They exist as socket methods (schema consts) but no `herdr layout` CLI group exists in 0.8.2. Watchbill's `ssh_cli` transport therefore rebuilds shape with `workspace create` + `pane split` (both verified CLI) and only uses `layout.apply` through a socket transport.
+3. `layout.export` / `layout.apply` CLI exposure, and the `splits` tree format for multi-pane tabs. They exist as socket methods (schema consts) but no `herdr layout` CLI group exists in 0.8.2. Watchbill's `ssh_cli` transport therefore rebuilds shape with `workspace create` + `pane split` (both verified CLI) and only uses `layout.apply` through a socket transport.
 4. `[[startup]]` table shape in `herdr-plugin.toml`.
 5. `hermes --resume <id>`.
 6. Whether `herdr agent list` exposes the name set by `agent rename` (no `name` field was present on unnamed agents in the snapshot).
+7. `send-keys` key names beyond `esc`: `enter`, `ctrl-c`.
+8. `agent wait <pane-id> --until unknown` as the "agent exited" signal after `/exit`.
+9. Agent self-update subcommands: `grok upgrade`, `cursor-agent update`, `opencode upgrade`.

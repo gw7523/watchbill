@@ -48,6 +48,7 @@ class Host:
     attach: str = DEFAULT_ATTACH
     herdr_bin: str = "herdr"
     connect_timeout: int = 5
+    remote_verified: bool = False   # set by doctor when cockpit and remote herdr versions match
 
     def start_cmd(self, session: str) -> str:
         return self.start.format(session=session)

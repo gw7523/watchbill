@@ -6,8 +6,8 @@ tab → pane, labels only, no commands) are stored beside them so ``set`` can
 rebuild layout by label. ``current.json`` is a symlink to the last *good*
 roster; :func:`occupant_guard` decides whether a new roster may take it over.
 
-JSON Schema: ``docs/roster.schema.json``. Anything not in the schema is
-rejected by ``watchbill snap --validate`` (jsonschema optional).
+JSON Schema: ``docs/roster.schema.json`` (validated in tests with
+jsonschema, a dev dependency; the runtime does not validate).
 """
 from __future__ import annotations
 

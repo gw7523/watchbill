@@ -63,7 +63,12 @@ own a cross-cutting table. Nothing was removed.
   (argv rendering, no I/O) so a dry-run prints the literal command.
 - **`exec.py` mutates.** `Plan.scheduled()` is what it runs; without
   `--yes` that list contains no mutating step. `plan.is_mutating(argv)`
-  classifies every herdr verb; unknown verbs fail closed as mutating.
+  classifies every herdr verb; unknown verbs fail closed as mutating. The
+  SNAP/GUARD markers in a plan are performed by `cli._run_plan` around exec:
+  a `pre-secure`/`pre-relieve` roster is written and the occupant guard
+  evaluated before the first mutating step; a `post-*` snap is attempted
+  after. Prompt steps carry `precondition="agent_status != blocked"` and
+  exec checks it with `agent get` before typing anything.
 - **Transports isolate SSH.** Collect, doctor and exec speak `HostSession`.
 - **Actions declare blast radius** and return `RemoteCmd`s. They never call
   `session stop`. `plan_relieve` composes; `exec` applies.
@@ -123,7 +128,8 @@ the full cmdline matches a glob in `allowlist.txt`; bridge/editor/shell → no.
 Default remote: `ssh -o BatchMode=yes -o ConnectTimeout=5 <target> -- herdr --session S …`
 (remote side shell-quoted). Not `herdr --remote`: Omarchy's package has
 reported `0.8.0` while speaking protocol 20 and `--remote` refuses on the
-string mismatch. `herdr_remote` is opt-in after doctor matches versions.
+string mismatch. `herdr_remote` is opt-in: `make_session` refuses it unless
+`Host.remote_verified` was set by a doctor version match.
 
 Socket order (Herdr's own): `--session` → `HERDR_SOCKET_PATH` →
 `HERDR_SESSION` → `~/.config/herdr/herdr.sock`; named sessions at
@@ -189,8 +195,9 @@ cli.cmd_set(targets, --from current.json)
   │       2 if not running: sh -c "<hosts.toml start>" ; wait status      [M]
   │       3 #2064 viewport: cockpit pane split --pane $HERDR_PANE_ID --direction down --no-focus
   │                         cockpit pane run {pane:viewport} ssh -tt <target> -- herdr session attach S
-  │       4 shape by labels: workspace create --label L --cwd C --no-focus  → creates {pane:slot₀}
-  │                          pane split {pane:slot₀} --direction right|down --cwd C → {pane:slotₙ}
+  │       4 shape by labels: workspace create --label L --cwd C --no-focus  → creates {pane:slot₀} and {ws:slot₀}
+  │                          tab create --workspace {ws:slot₀} --label T --cwd C --no-focus → {pane:slot_t}
+  │                          pane split {pane:slot_t} --direction right|down --cwd C → {pane:slotₙ}
   │       5 agent w/ session: agent start <name> --kind K --pane {pane:slot} -- claude --resume <id>
   │       6 unref agent:      agent start <name> --kind K --pane {pane:slot}
   │       7 allowlisted watcher: pane run {pane:slot} <argv…>
@@ -212,12 +219,25 @@ cli.cmd_relieve(action=upgrade-herdr, --mode cold)
   │       cmds = action.commands(host, probe)   ActionUnavailable → REFUSE
   │       park_steps(blast.park_roles ∩ park_kinds)          (secure park rules apply)
   │       sh -c "cp session.json session.json.watchbill-<run>"           #3415
+  │       cmds with before_stop=True (install-plugin: bare `herdr plugin install`, no --session)
   │       blast.needs_session_stop → session stop <S>
-  │       cmds → shell/herdr steps  (official: herdr update ; mise: mise upgrade herdr ; pacman: REFUSE)
+  │       cmds with before_stop=False (official: herdr update ; mise: mise upgrade herdr ; pacman: REFUSE)
   │       verify → status server --json ; --expected-version note
   │       needs_session_stop → set_steps(parked, assume_running=False): start + attach + shape + resume
   │       JOURNAL set-complete <host>
   └─► dry-run / --yes ; exec stops at the first failed mutating step on a host; --resume continues
+```
+
+### relieve live (official-installer host)
+
+```
+relieve upgrade-herdr --mode live --host vps
+  gate: every host that will run has probe.handoff_supported (flavor=official AND server flag)
+  SNAP ; GUARD
+  (no park, no session stop — handoff exists to keep the PTYs)
+  herdr update --handoff            before_stop=True: the server must be running to hand off
+  verify: status server --json ; --expected-version
+  JOURNAL set-complete
 ```
 
 ### relieve live-rejected
@@ -256,7 +276,7 @@ relieve upgrade-agents --kinds grok --host ser6
 | upgrade-agents | agent (kinds) | **no** | yes | per-kind by flavor + `integration install` |
 | install-plugin | agent if startup hooks | if startup hooks | if startup hooks | enable ≠ hook fired |
 | restart-harness | agent | yes | yes | no commands |
-| custom | declared | declared | = session stop | `--allow-reboot` still separate |
+| custom | declared | declared | = session stop | `--may-reboot` declares; `--allow-reboot` is the operator gate |
 
 ## Occupant guard (#3415)
 
@@ -297,8 +317,22 @@ empty one.
 | `hermes --resume <id>` | as contract | fresh start + prompt |
 | `[[startup]]` manifest table | any `startup` key ⇒ hooks | operator `--startup-hooks` |
 | agent name in `agent list` | `pane.name` / `pane.agent_name` if present | `p<n>` label; `agent start` name derived from kind + slot suffix |
-| `tab create` flags for multi-tab workspaces | not emitted; only tab 1 rebuilt | note in plan; MVP adds after `herdr tab create --help` |
-| `layout.apply` via socket | not used by ssh_cli | `workspace create` + `pane split` (verified CLI) |
+| `splits` tree format in `layout.export` | not consumed; each extra pane splits off its tab's first pane by rect | capture one multi-pane layout live, then rebuild from the tree |
+| `send-keys` name for Enter | `"enter"` (flagged unverified) | `pane send-text` with a trailing newline |
+| `agent wait` target after `/exit` | pane id | `pane wait-output`, or poll `agent list` until the pane is gone |
+| agent self-update argv (`grok upgrade`, `cursor-agent update`, `opencode upgrade`) | flagged unverified; fail closed if `--help` lacks it | mise/npm/brew path by flavor |
+
+Verified on the live box after the first review and therefore *not* in the
+table: `pane send-text`, `pane split [PANE_ID] --direction right|down --cwd
+--no-focus`, `tab create --workspace --label --cwd --no-focus`, `agent get
+<target>`, `agent wait --until unknown`, `plugin install --yes [--ref]`
+(bare, no `--session`, before any stop), `integration install <kind>`,
+`session.json` paths.
+
+Review history: [reviews/2026-09-11-grok-review.md](reviews/2026-09-11-grok-review.md)
+(approve-with-nits; every should-fix item is addressed in the follow-up
+commit, the split-tree item partially: rect-based direction stays until a
+multi-pane `splits` blob is captured).
 
 ## Exit codes
 

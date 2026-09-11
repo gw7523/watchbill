@@ -28,7 +28,7 @@ from .plan import Plan, Step, StepKind, check_verbs_allowed
 from .transport import make_session
 from .transport.base import CmdResult, HostSession
 
-_PLACEHOLDER = re.compile(r"\{pane:([^}]+)\}")
+_PLACEHOLDER = re.compile(r"\{(pane|ws):([^}]+)\}")
 
 
 @dataclass
@@ -66,9 +66,9 @@ class Executor:
 
     def _resolve(self, raw: tuple[str, ...], pane_map: dict[str, str]) -> tuple[str, ...]:
         def sub(m: re.Match) -> str:
-            key = m.group(1)
+            key = f"{m.group(1)}:{m.group(2)}" if m.group(1) == "ws" else m.group(2)
             if key not in pane_map:
-                raise KeyError(f"pane placeholder {key!r} not created yet")
+                raise KeyError(f"placeholder {m.group(0)} not created yet")
             return pane_map[key]
         return tuple(_PLACEHOLDER.sub(sub, t) for t in raw)
 
@@ -82,6 +82,26 @@ class Executor:
         pid = (r.get("root_pane") or {}).get("pane_id") or (r.get("pane") or {}).get("pane_id")
         if pid:
             pane_map[step.creates] = pid
+        wsid = (r.get("workspace") or {}).get("workspace_id")
+        if wsid:
+            pane_map[f"ws:{step.creates}"] = wsid
+
+    def _check_precondition(self, step: Step, hs: HostSession, raw: tuple[str, ...]) -> str | None:
+        """Pitfall 12: never prompt a blocked agent. Herdr rejects it too, but
+        we ask first so the plan stops cleanly instead of on an error."""
+        if step.precondition != "agent_status != blocked":
+            return None
+        target = raw[2] if len(raw) > 2 else None
+        res = hs.herdr("agent", "get", target) if target else None
+        if res is None or not res.ok:
+            return f"cannot read agent {target} before prompting"
+        try:
+            status = (res.json().get("agent") or res.json()).get("agent_status")
+        except ValueError:
+            status = None
+        if status == "blocked":
+            return f"agent {target} is blocked on an approval/question dialog; prompt refused"
+        return None
 
     def _post_prompt_check(self, step: Step, hs: HostSession) -> str | None:
         """Pitfall 13: agent must still be present after a prompt."""
@@ -145,8 +165,9 @@ class Executor:
         if step.kind in (StepKind.NOTE,):
             return None
         if step.kind in (StepKind.SNAP, StepKind.GUARD):
-            # The CLI performs snaps/guards around exec (they need the collector);
-            # inside a plan they are markers so dry-run shows where they happen.
+            # Performed by cli._run_plan around exec (pre-* roster written and the
+            # occupant guard evaluated before the first mutating step; post-set
+            # snap attempted after). In the plan they are markers for dry-run.
             return None
         if step.kind is StepKind.JOURNAL:
             status = "set-complete" if step.description == "set-complete" else (
@@ -160,6 +181,10 @@ class Executor:
             via = {StepKind.HERDR: "herdr", StepKind.WAIT: "herdr", StepKind.SHELL: "shell", StepKind.LOCAL: "local"}.get(step.kind, "none")
         if via == "herdr":
             hs = self._hs(step.host, step.session)
+            if step.precondition:
+                err = self._check_precondition(step, hs, raw)
+                if err:
+                    return err
             res = hs.herdr(*raw)
             self._record_created(step, res, result.pane_map)
             if not res.ok:

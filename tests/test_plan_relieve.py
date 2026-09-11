@@ -23,10 +23,45 @@ def test_live_mode_rejected_when_handoff_unsupported(roster, fleet, probes):
         plan_relieve(roster, fleet, opts(probes, "restart-herdr", mode="live"))
 
 
-def test_live_mode_allowed_on_official_install(roster, fleet, probes):
+def test_live_mode_allowed_on_official_install_and_keeps_ptys(roster, fleet, probes):
     p = plan_relieve(roster, fleet, opts(probes, "upgrade-herdr", mode="live", hosts=["vps"]))
     assert not p.refused
     assert any(s.raw == ("herdr", "update", "--handoff") for s in p.steps)
+    v = verbs(p)
+    assert ("session", "stop") not in v and ("pane", "send-text") not in v and ("agent", "start") not in v
+    assert not any(s.id.endswith("start") and s.kind.value == "shell" for s in p.steps)
+
+
+def test_live_gate_only_considers_hosts_that_run(roster, fleet, probes):
+    # rig2 (cockpit, pacman) is skipped without --include-local, so it must not block a live window on vps
+    p = plan_relieve(roster, fleet, opts(probes, "upgrade-herdr", mode="live", hosts=["rig2", "vps"]))
+    assert not p.refused and any("skip cockpit host rig2" in n for n in p.notes)
+    with pytest.raises(RefusedPlan):
+        plan_relieve(roster, fleet, opts(probes, "upgrade-herdr", mode="live", hosts=["rig2", "vps"], include_local=True))
+
+
+def test_install_plugin_runs_before_session_stop(roster, fleet, probes):
+    p = plan_relieve(roster, fleet, opts(probes, "install-plugin", hosts=["vps"], action_options={"plugin": "o/r", "startup_hooks": True}))
+    ids = [s.id for s in p.steps]
+    act = next(s for s in p.steps if s.id == "vps.act1")
+    assert act.via == "shell" and act.raw == ("herdr", "plugin", "install", "o/r", "--yes") and "--session" not in act.argv
+    assert ids.index("vps.act1") < ids.index("vps.stop1")
+    # upgrade-herdr on an official host: update runs AFTER the stop
+    p = plan_relieve(roster, fleet, opts(probes, "upgrade-herdr", hosts=["vps"]))
+    ids = [s.id for s in p.steps]
+    assert ids.index("vps.stop1") < ids.index("vps.act1")
+
+
+def test_upgrade_agents_parks_only_upgradable_kinds(roster, fleet, probes):
+    roster.by_human("ser6/default/sfl-site/1/p1").agent_status = "idle"
+    # ser6 probe knows claude + grok; no --kinds → both parked, both upgraded
+    p = plan_relieve(roster, fleet, opts(probes, "upgrade-agents", hosts=["ser6"]))
+    parked = {roster.by_slot(s.slot_id).kind for s in p.steps if s.verb == ("pane", "send-text")}
+    assert parked == {"claude", "grok"}
+    from watchbill import actions
+    a = actions.get("upgrade-agents", actions.ActionContext(probes=probes))
+    assert a.park_kinds_for(fleet.host("vps"), probes["vps"]) == {"claude"}
+    assert a.blast_radius().park_kinds == {"claude", "codex", "grok"}
 
 
 def test_upgrade_agents_does_not_stop_the_session(roster, fleet, probes):
@@ -36,7 +71,7 @@ def test_upgrade_agents_does_not_stop_the_session(roster, fleet, probes):
     assert ("session", "stop") not in v and ("server", "stop") not in v
     assert ("pane", "send-text") in v                       # grok parked
     assert ("agent", "start") in v                          # and resumed on the new binary
-    assert any(s.raw == ("mise", "upgrade", "npm:@xai-official/grok") or s.raw[:2] == ("npm", "install") for s in p.steps)
+    assert any(s.raw[:2] == ("npm", "install") for s in p.steps)
     assert any(s.raw == ("integration", "install", "grok") for s in p.steps)
     assert not any(s.slot_id == roster.by_human("ser6/default/sfl-site/1/p1").slot_id for s in p.steps)  # claude not in kinds
 
@@ -90,7 +125,8 @@ def test_reboot_gates(roster, fleet, probes):
 
 def test_install_plugin_with_and_without_startup_hooks(roster, fleet, probes):
     p = plan_relieve(roster, fleet, opts(probes, "install-plugin", hosts=["vps"], action_options={"plugin": "o/r"}))
-    assert ("session", "stop") not in verbs(p) and ("plugin", "install") in verbs(p)
+    assert ("session", "stop") not in verbs(p)
+    assert any(s.raw[:3] == ("herdr", "plugin", "install") and s.via == "shell" for s in p.steps)
     p = plan_relieve(roster, fleet, opts(probes, "install-plugin", hosts=["vps"], action_options={"plugin": "o/r", "startup_hooks": True}))
     assert ("session", "stop") in verbs(p)
 

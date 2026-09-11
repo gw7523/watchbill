@@ -14,7 +14,10 @@ Cold (default; the only mode a pacman/Omarchy host can use)::
    10. --resume skips hosts already marked set-complete
 
 Live (``--mode live``): only when doctor says ``handoff: supported`` for
-every host in scope. Otherwise :class:`RefusedPlan` — never a silent cold.
+every host that will actually run. Otherwise :class:`RefusedPlan` — never a
+silent cold. A live window parks nothing and stops nothing: the point of
+handoff is to keep the PTYs, so only the action's ``before_stop`` commands
+(``herdr update --handoff``) and verify run.
 """
 from __future__ import annotations
 
@@ -65,12 +68,15 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
     blast = action.blast_radius()
     plan = Plan(verb="relieve", fleet=roster.fleet, mode=f"{opts.action} {opts.mode}", approved=opts.approved)
     plan.notes.append(f"blast radius: {blast.as_dict()}")
-    plan.notes.append("rolling: one host at a time" if opts.rolling else "no-rolling: hosts in sequence without per-host settle")
+    plan.notes.append("rolling: one host at a time; a failed host stops the run, --resume continues")
+    live = opts.mode == "live"
 
     host_names = opts.hosts or [h.name for h in fleet.hosts]
-    # Live mode is all-or-nothing: refuse before planning anything.
-    if opts.mode == "live":
-        for hn in host_names:
+    active = [hn for hn in host_names
+              if (h := fleet.host(hn)) is not None and (not h.cockpit or opts.include_local) and hn not in opts.resume_done]
+    # Live mode is all-or-nothing over the hosts that will run: refuse before planning anything.
+    if live:
+        for hn in active:
             p = opts.probes.get(hn)
             if p is None or not p.handoff_supported:
                 why = "no probe" if p is None else f"flavor={p.flavor} live_handoff_flag={p.live_handoff_flag}"
@@ -92,6 +98,8 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         if hn in opts.resume_done:
             plan.notes.append(f"skip {hn}: already set-complete in run {opts.run_id} (--resume)")
             continue
+        if live:
+            plan.notes.append(f"{hn}: live handoff — nothing parked, session kept up")
         probe = opts.probes.get(hn)
         if probe is None or not probe.reachable:
             plan.refusals.append(Refusal("host unreachable or not probed; run watchbill doctor", host=hn))
@@ -111,30 +119,37 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         verify = action.verify(host)
         tag = f"{hn}."
         plan.add(Step(id=f"{tag}begin", kind=StepKind.JOURNAL, host=hn, description=f"host-start {opts.action}", mutating=True))
-        # 2. park
-        pool = [o for o in roster.on_host(hn) if o.role in blast.park_roles
-                and (blast.park_kinds is None or o.kind in blast.park_kinds)]
+        # 2. park (never in live mode: handoff keeps the PTYs)
+        kinds = action.park_kinds_for(host, probe)
+        pool = [] if live else [o for o in roster.on_host(hn) if o.role in blast.park_roles
+                                and (kinds is None or o.kind in kinds)]
         parked = park_steps(plan, fleet, pool, force=opts.force, self_pane=opts.self_pane,
                             cockpit_host=opts.cockpit_host, prefix=f"{tag}park")
         sessions = sorted({o.session for o in roster.on_host(hn)} or set(host.sessions))
+        stop = blast.needs_session_stop and not live
         # 3. copy session.json aside
         for s in sessions:
             src = session_json_path(s)
             argv = ["sh", "-c", f"cp -p {src} {src}.watchbill-{opts.run_id} 2>/dev/null || true"]
             plan.add(Step(id=f"{tag}keep.{s}", kind=StepKind.SHELL, host=hn, session=s, argv=tuple(argv), raw=tuple(argv),
                           description="#3415: copy session.json aside before any stop", mutating=True, via="shell"))
-        # 4. session stop only if declared
-        if blast.needs_session_stop:
+        # 4/5. action commands that need no running server go first, then the
+        #      declared session stop, then the rest (a stopped socket answers nothing)
+        def emit(cmd_list, offset):
+            for i, c in enumerate(cmd_list, offset):
+                if c.via == "herdr":
+                    herdr_step(plan, fleet, f"{tag}act{i}", hn, sessions[0], c.description, *c.argv[1:], unverified=c.unverified)
+                else:
+                    plan.add(Step(id=f"{tag}act{i}", kind=StepKind.SHELL, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
+                                  description=c.description, mutating=c.mutating, unverified=c.unverified, via="shell"))
+        early = [c for c in cmds if c.before_stop]
+        late = [c for c in cmds if not c.before_stop]
+        emit(early, 1)
+        if stop:
             for i, s in enumerate(sessions, 1):
                 herdr_step(plan, fleet, f"{tag}stop{i}", hn, s, f"stop session {s} (blast radius; not server stop)",
                            "session", "stop", s)
-        # 5. action commands
-        for i, c in enumerate(cmds, 1):
-            if c.via == "herdr":
-                herdr_step(plan, fleet, f"{tag}act{i}", hn, sessions[0], c.description, *c.argv[1:], unverified=c.unverified)
-            else:
-                plan.add(Step(id=f"{tag}act{i}", kind=StepKind.SHELL, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
-                              description=c.description, mutating=c.mutating, unverified=c.unverified, via="shell"))
+        emit(late, len(early) + 1)
         # 6. verify
         for i, c in enumerate(verify.commands, 1):
             if c.via == "herdr":
@@ -146,7 +161,7 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
             plan.add(Step(id=f"{tag}expect", kind=StepKind.NOTE, host=hn,
                           description=f"expect herdr {opts.expected_version} (doctor.expect_version)"))
         # 7. start + attach if the session was stopped (even with nothing to set)
-        if blast.needs_session_stop:
+        if stop:
             for i, s in enumerate(sessions, 1):
                 start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.")
                 attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
@@ -155,7 +170,7 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
                 attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
         # 8. set the parked slots (shape is rebuilt from scratch after a stop)
         if parked:
-            set_steps(plan, roster, fleet, parked, probes=opts.probes, live=None if blast.needs_session_stop else roster,
+            set_steps(plan, roster, fleet, parked, probes=opts.probes, live=None if stop else roster,
                       no_prompt=bool(opts.action_options.get("no_prompt")), cockpit_host=opts.cockpit_host,
                       self_pane=opts.self_pane, tag=f"{tag}slots", assume_running=True, skip_attach=True)
         # 9. journal

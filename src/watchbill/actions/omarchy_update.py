@@ -22,4 +22,4 @@ class OmarchyUpdate(BaseAction):
     def commands(self, host: Host, probe: Probe) -> list[RemoteCmd]:
         if probe.flavor != "pacman":
             raise ActionUnavailable(f"{host.name}: omarchy-update needs a pacman/Omarchy host (flavor={probe.flavor})")
-        return [RemoteCmd(("omarchy-update", "-y"), "Omarchy + system package update, unattended")]
+        return [RemoteCmd(("omarchy-update", "-y"), "Omarchy + system package update, unattended", before_stop=False)]

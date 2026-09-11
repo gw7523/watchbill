@@ -131,7 +131,8 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
             n += 1
             herdr_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"type {text} into {o.kind}",
                        "pane", "send-text", pid, text, unverified=not verified)
-            herdr_step(plan, fleet, f"{prefix}{n}b", o, o.session, "press enter", "pane", "send-keys", pid, "enter")
+            herdr_step(plan, fleet, f"{prefix}{n}b", o, o.session, "press enter", "pane", "send-keys", pid, "enter",
+                       unverified=True)   # key name: only `esc` is documented
             herdr_step(plan, fleet, f"{prefix}{n}c", o, o.session, "wait for the agent to exit (pane back at shell)",
                        "agent", "wait", pid, "--until", "unknown", "--timeout", "20000", kind=StepKind.WAIT)
             parked.append(o)

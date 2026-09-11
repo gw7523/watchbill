@@ -32,7 +32,9 @@ class InstallPlugin(BaseAction):
         argv = [host.herdr_bin, "plugin", "install", spec, "--yes"]
         if self.options.get("ref"):
             argv += ["--ref", str(self.options["ref"])]
-        return [RemoteCmd(tuple(argv), f"install plugin {spec}", via="herdr")]
+        # bare `herdr plugin install`: no --session, no running server needed;
+        # before_stop so a hooks-bounce installs first, then stops, then restores.
+        return [RemoteCmd(tuple(argv), f"install plugin {spec}", via="shell", before_stop=True)]
 
     def verify(self, host: Host) -> Verify:
-        return Verify("plugin listed", (RemoteCmd((host.herdr_bin, "plugin", "list"), "plugin list", mutating=False, via="herdr"),))
+        return Verify("plugin listed", (RemoteCmd((host.herdr_bin, "plugin", "list"), "plugin list", mutating=False, via="shell"),))

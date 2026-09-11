@@ -57,9 +57,18 @@ def test_secure_dry_run_and_refusals(xdg, fixture_collect, capsys):
     assert "DRY-RUN" in out and "/exit" in out
 
 
-def test_secure_yes_hits_unimplemented_transport(xdg, fixture_collect, capsys):
+def test_secure_yes_snaps_first_then_hits_unimplemented_transport(xdg, fixture_collect, capsys):
     assert cli.main(["secure", "park", "ser6/default/personal-config/1/p1", "--yes"]) == 4
-    assert "not implemented in this pass" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "pre-secure" in out and "not implemented in this pass" in out
+    rosters = list(paths.rosters_dir("test").glob("*-pre-secure.json"))
+    assert len(rosters) == 1 and paths.current_roster("test").exists()
+
+
+def test_snap_refuses_when_every_host_is_down(xdg, fixture_collect, capsys):
+    assert cli.main(["snap", "--host", "vps"]) == 1
+    assert "no host reachable" in capsys.readouterr().err
+    assert not paths.current_roster("test").exists()
 
 
 def test_set_needs_roster_then_plans(xdg, fixture_collect, capsys):
@@ -74,6 +83,9 @@ def test_relieve_live_refused_and_cold_plans(xdg, fixture_collect, capsys):
     assert cli.main(["relieve", "upgrade-herdr", "--mode", "live", "--probes-json", PROBES]) == 3
     assert "live handoff unsupported" in capsys.readouterr().err
     assert cli.main(["relieve", "upgrade-agents", "--host", "ser6", "--kinds", "grok", "--probes-json", PROBES]) == 0
+    # --no-rolling was dropped (rolling is the only mode); it must be a usage error now
+    with pytest.raises(SystemExit):
+        cli.main(["relieve", "upgrade-agents", "--no-rolling"])
     out = capsys.readouterr().out
     assert "session stop" not in out and "integration install grok" in out
     assert cli.main(["overhaul", "upgrade-herdr", "--host", "ser6", "--probes-json", PROBES]) == 3

@@ -86,6 +86,28 @@ def test_starts_session_when_probe_says_down(roster, fleet, probes):
     assert start.raw == ("sh", "-c", "systemctl --user start herdr.service") and start.mutating
 
 
+def test_extra_tabs_use_tab_create(roster, fleet, probes, fleet_json, allowlist):
+    from conftest import facts_from_fixture
+    from watchbill import collect
+    from watchbill.slots import SlotStore
+    facts = facts_from_fixture(fleet_json)
+    snap = facts[1].sessions[0].snapshot                      # ser6
+    # give workspace w2 a second tab with one pane
+    snap["tabs"].append({"tab_id": "w2:t2", "workspace_id": "w2", "label": "2", "number": 2, "pane_count": 1, "agent_status": "idle", "focused": False})
+    snap["layouts"].append({"tab_id": "w2:t2", "workspace_id": "w2", "area": {}, "zoomed": False, "focused_pane_id": "w2:p9",
+                            "panes": [{"pane_id": "w2:p9", "focused": True, "rect": {"x": 0, "y": 0}}], "splits": []})
+    snap["panes"].append({"pane_id": "w2:p9", "tab_id": "w2:t2", "workspace_id": "w2", "cwd": "/home/u/Work/personal-config",
+                          "foreground_cwd": None, "terminal_id": "t9", "terminal_title": "", "terminal_title_stripped": ""})
+    r = collect.build_roster("t", facts, slots=SlotStore(), allowlist=allowlist)
+    ws = [w for w in r.shape_for("ser6", "default").workspaces if w["label"] == "personal-config"][0]
+    assert [t["label"] for t in ws["tabs"]] == ["1", "2"]
+    p = plan_set(r, fleet, SetOptions(targets=["personal-config"], host="ser6", cockpit_host="rig2", self_pane="w4:p1", probes=probes))
+    tab = next(s for s in p.steps if s.verb == ("tab", "create"))
+    first_slot = ws["tabs"][0]["panes"][0]["slot_id"]
+    assert tab.raw[2:6] == ("--workspace", f"{{ws:{first_slot}}}", "--label", "2") and tab.placeholders
+    assert p.steps.index(next(s for s in p.steps if s.verb == ("workspace", "create"))) < p.steps.index(tab)
+
+
 def test_no_pane_layout_current_anywhere(roster, fleet, probes):
     p = plan_set(roster, fleet, opts(probes))
     assert not any("--current" in s.argv for s in p.steps)

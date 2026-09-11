@@ -17,7 +17,7 @@ import json
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
-from ..exitcodes import TransportError
+from ..exitcodes import TransportError  # noqa: F401  (re-exported for transports)
 from ..hosts import Host
 
 

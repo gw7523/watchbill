@@ -121,27 +121,41 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
         created: set[str] = set()
         if shape:
             for ws in shape.workspaces:
-                panes = [pn for t in ws["tabs"] for pn in t["panes"] if pn["slot_id"] in wanted_slots]
-                if not panes:
+                tabs = [(t, [pn for pn in t["panes"] if pn["slot_id"] in wanted_slots]) for t in ws["tabs"]]
+                tabs = [(t, panes) for t, panes in tabs if panes]
+                if not tabs:
                     continue
-                first = panes[0]
-                live_first = _live_ids(live, roster.by_slot(first["slot_id"])) if live else None
-                if live_first and live_first.live_ids.pane_id:
+                ws_key = tabs[0][1][0]["slot_id"]      # workspace id placeholder key = first restored slot
+                live_first = _live_ids(live, roster.by_slot(ws_key)) if live else None
+                ws_live = bool(live_first and live_first.live_ids.pane_id)
+                if ws_live:
                     plan.notes.append(f"workspace {ws['label']} already present on {host_name}; reusing")
-                else:
-                    herdr_step(plan, fleet, f"{p}ws.{ws['label']}", host_name, session,
-                               f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
-                               "workspace", "create", "--label", ws["label"], "--cwd", first.get("cwd") or ws.get("cwd") or "~",
-                               "--no-focus", creates=first["slot_id"])
-                    created.add(first["slot_id"])
-                for pn in panes[1:]:
-                    r0, r1 = first.get("rect") or {}, pn.get("rect") or {}
-                    direction = "right" if (r1.get("x", 0) > r0.get("x", 0)) else "down"
-                    herdr_step(plan, fleet, f"{p}split.{pn['slot_id'][-6:]}", host_name, session,
-                               f"split pane for {pn['pane_label']} ({direction})",
-                               "pane", "split", f"{{pane:{first['slot_id']}}}", "--direction", direction,
-                               "--cwd", pn.get("cwd") or "~", "--no-focus", placeholders=True, creates=pn["slot_id"])
-                    created.add(pn["slot_id"])
+                for ti, (t, panes) in enumerate(tabs):
+                    first = panes[0]
+                    if ws_live:
+                        pass
+                    elif ti == 0:
+                        herdr_step(plan, fleet, f"{p}ws.{ws['label']}", host_name, session,
+                                   f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
+                                   "workspace", "create", "--label", ws["label"], "--cwd", first.get("cwd") or ws.get("cwd") or "~",
+                                   "--no-focus", creates=first["slot_id"])
+                        created.add(first["slot_id"])
+                    else:
+                        herdr_step(plan, fleet, f"{p}tab.{ws['label']}.{t['label']}", host_name, session,
+                                   f"create tab {t['label']} in {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
+                                   "tab", "create", "--workspace", f"{{ws:{ws_key}}}", "--label", t["label"],
+                                   "--cwd", first.get("cwd") or "~", "--no-focus", placeholders=True, creates=first["slot_id"])
+                        created.add(first["slot_id"])
+                    # UNVERIFIED-0.8.2: the exact `splits` tree format. Until captured live,
+                    # each extra pane splits off the tab's first pane by rect position.
+                    for pn in panes[1:]:
+                        r0, r1 = first.get("rect") or {}, pn.get("rect") or {}
+                        direction = "right" if (r1.get("x", 0) > r0.get("x", 0)) else "down"
+                        herdr_step(plan, fleet, f"{p}split.{pn['slot_id'][-6:]}", host_name, session,
+                                   f"split pane for {pn['pane_label']} ({direction})",
+                                   "pane", "split", f"{{pane:{first['slot_id']}}}", "--direction", direction,
+                                   "--cwd", pn.get("cwd") or "~", "--no-focus", placeholders=True, creates=pn["slot_id"])
+                        created.add(pn["slot_id"])
         # 5–8. occupants
         for o in occs:
             pane_tok = f"{{pane:{o.slot_id}}}" if o.slot_id in created or live is None else (

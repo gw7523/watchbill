@@ -117,6 +117,27 @@ def test_13_codex_update_dialog_is_not_success():
     assert o.handoff_supported and o.flavor == "official"
 
 
+def test_duplicate_pane_names_in_one_tab_get_distinct_slots(fleet_json, allowlist):
+    facts = facts_from_fixture(fleet_json)
+    snap = facts[0].sessions[0].snapshot
+    for p in snap["panes"]:
+        if p["workspace_id"] == "w2":
+            p["name"] = "claude"          # both panes of api/1 named claude
+    r = collect.build_roster("t", facts, slots=SlotStore(), allowlist=allowlist)
+    ids = sorted(o.human_id for o in r.occupants if o.workspace_label == "api")
+    assert ids == ["rig2/default/api/1/claude", "rig2/default/api/1/claude#2"]
+    assert len({o.slot_id for o in r.occupants}) == len(r.occupants)
+
+
+def test_herdr_remote_needs_doctor_match():
+    from watchbill.exitcodes import TransportError
+    h = hosts.Host(name="x", target="x.example", transport="herdr_remote")
+    with pytest.raises(TransportError):
+        make_session(h, "default")
+    h.remote_verified = True
+    assert make_session(h, "default").herdr_argv("agent", "list")[:3] == ["herdr", "--remote", "x.example"]
+
+
 def test_hosts_toml_rejects_remote_without_target():
     with pytest.raises(ValueError):
         hosts.parse('[[host]]\nname = "x"\ntransport = "ssh_cli"\n')

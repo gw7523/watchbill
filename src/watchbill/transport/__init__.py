@@ -26,6 +26,10 @@ def make_session(host: Host, session: str) -> HostSession:
         from .ssh_socket import SshSocketSession
         return SshSocketSession(host, session)
     if host.transport == "herdr_remote":
+        if not host.remote_verified:
+            from .base import TransportError
+            raise TransportError(f"{host.name}: herdr_remote needs a doctor version match first "
+                                 "(Omarchy 0.8.2 packages break --remote matching); use ssh_cli")
         from .herdr_remote import HerdrRemoteSession
         return HerdrRemoteSession(host, session)
     raise ValueError(f"unknown transport {host.transport!r}")

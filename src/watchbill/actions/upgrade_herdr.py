@@ -23,15 +23,16 @@ class UpgradeHerdr(BaseAction):
         if probe.flavor == "pacman":
             if self.options.get("allow_partial_pacman"):
                 return [RemoteCmd(("sudo", "pacman", "-S", "--noconfirm", "herdr"),
-                                  "partial pacman upgrade of herdr (allow_partial_pacman=true)")]
+                                  "partial pacman upgrade of herdr (allow_partial_pacman=true)", before_stop=False)]
             raise ActionUnavailable(
                 f"{host.name}: herdr is pacman-owned; refusing partial upgrade. Use the omarchy-update "
                 "action, or set relieve.allow_partial_pacman = true. (never `herdr update` here)")
         if probe.flavor == "mise":
-            return [RemoteCmd(("mise", "upgrade", "herdr"), "mise upgrade herdr")]
+            return [RemoteCmd(("mise", "upgrade", "herdr"), "mise upgrade herdr", before_stop=False)]
         if probe.flavor == "brew":
-            return [RemoteCmd(("brew", "upgrade", "herdr"), "brew upgrade herdr")]
+            return [RemoteCmd(("brew", "upgrade", "herdr"), "brew upgrade herdr", before_stop=False)]
         if probe.flavor == "official":
             argv = (host.herdr_bin, "update", "--handoff") if live else (host.herdr_bin, "update")
-            return [RemoteCmd(argv, "official installer update" + (" with live handoff" if live else ""))]
+            # live: the server must still be running for --handoff; cold: after session stop
+            return [RemoteCmd(argv, "official installer update" + (" with live handoff" if live else ""), before_stop=live)]
         raise ActionUnavailable(f"{host.name}: herdr install flavor {probe.flavor!r} has no known upgrade path")

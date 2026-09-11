@@ -66,8 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
         s.add_argument("action", choices=RELIEVE_ACTIONS)
         _mut_flags(s)
         s.add_argument("--mode", choices=plan_relieve.MODES, default="cold")
-        s.add_argument("--rolling", dest="rolling", action="store_true", default=True)
-        s.add_argument("--no-rolling", dest="rolling", action="store_false")
+        s.add_argument("--rolling", dest="rolling", action="store_true", default=True, help="one host at a time (always; kept for the contract's CLI shape)")
         s.add_argument("--resume", action="store_true", help="skip hosts marked set-complete in the last run")
         s.add_argument("--expected-version", help="doctor must see this herdr version after the action")
         s.add_argument("--allow-reboot", action="store_true", help="operator gate: let an action that may reboot proceed (never the cockpit)")
@@ -157,14 +156,14 @@ def _load_current(fleet_name: str) -> _roster.Roster | None:
     return _roster.load(cur) if cur.exists() else None
 
 
-def _probes(fleet: hosts.Fleet, args) -> dict[str, doctor.Probe]:
+def _probes(fleet: hosts.Fleet, args, kinds: tuple[str, ...] = ()) -> dict[str, doctor.Probe]:
     if args.probes_json:
         raw = json.loads(args.probes_json.read_text())
         return {k: doctor.Probe(**v) for k, v in raw.items()}
     out = {}
     for h in fleet.hosts:
         try:
-            out[h.name] = doctor.check(make_session(h, h.sessions[0]))
+            out[h.name] = doctor.check(make_session(h, h.sessions[0]), kinds=kinds)
         except NotImplementedInThisPass as exc:
             out[h.name] = doctor.Probe(host=h.name, reachable=False, error=str(exc))
     return out
@@ -207,9 +206,16 @@ def cmd_roll(args) -> int:
     return exitcodes.PARTIAL if down else exitcodes.OK
 
 
+def _kinds(ro: _roster.Roster) -> tuple[str, ...]:
+    return tuple(sorted({o.kind for o in ro.occupants if o.role == "agent" and o.kind}))
+
+
 def cmd_snap(args) -> int:
     fleet = _fleet(args)
     ro, down = _roll(fleet, args, reason=args.reason, excerpts=args.excerpts)
+    if not any(h.reachable for h in ro.hosts):
+        print("no host reachable; roster not written (would be empty)", file=sys.stderr)
+        return exitcodes.PARTIAL
     path, guard = _roster.write(ro, paths.rosters_dir(fleet.name), _guard_cfg(_read_config()), force=args.force)
     print(f"wrote {path}")
     if not guard.ok:
@@ -219,15 +225,36 @@ def cmd_snap(args) -> int:
     return exitcodes.PARTIAL if down else exitcodes.OK
 
 
-def _run_plan(args, fleet, plan) -> int:
+PRE_REASON = {"secure": "pre-secure", "relieve": "pre-relieve"}
+POST_REASON = {"secure": "post-secure", "set": "post-set", "relieve": "post-set"}
+
+
+def _run_plan(args, fleet, plan, roster: _roster.Roster | None = None) -> int:
     _emit(args, plan)
     if plan.refused:
         return exitcodes.REFUSED
     if not args.yes:
         return exitcodes.OK
+    cfg = _read_config()
+    # The plan's SNAP/GUARD markers are performed here, before the first mutating step.
+    if roster is not None and plan.verb in PRE_REASON:
+        roster.reason = PRE_REASON[plan.verb]
+        path, guard = _roster.write(roster, paths.rosters_dir(fleet.name), _guard_cfg(cfg), force=getattr(args, "force", False))
+        print(f"wrote {path} ({PRE_REASON[plan.verb]})")
+        if not guard.ok:
+            print(f"occupant guard refused: {guard.reason} (use --force)", file=sys.stderr)
+            return exitcodes.REFUSED
     j = journal.Journal(paths.journal_file())
     res = _exec.run(plan, fleet, j, run_id=new_ulid(), force_server_stop=getattr(args, "force_server_stop", False))
     print(res.summary())
+    if plan.verb in POST_REASON and res.code in (exitcodes.OK, exitcodes.PARTIAL):
+        try:
+            post, _down = _roll(fleet, args, reason=POST_REASON[plan.verb])
+            if any(h.reachable for h in post.hosts):
+                path, guard = _roster.write(post, paths.rosters_dir(fleet.name), _guard_cfg(cfg))
+                print(f"wrote {path} ({POST_REASON[plan.verb]}; current.json {'retargeted' if guard.ok else 'kept: ' + guard.reason})")
+        except NotImplementedInThisPass:
+            print("post-run snap skipped: live collect not implemented yet; run `watchbill snap` after the MVP")
     return res.code
 
 
@@ -238,7 +265,7 @@ def cmd_secure(args) -> int:
     opts = plan_secure.SecureOptions(mode=args.mode, targets=args.targets, host=args.host, force=args.force,
                                      include_local=args.include_local, force_server_stop=args.force_server_stop,
                                      approved=args.yes, self_pane=self_pane, cockpit_host=cockpit_host)
-    return _run_plan(args, fleet, plan_secure.plan_secure(ro, fleet, opts))
+    return _run_plan(args, fleet, plan_secure.plan_secure(ro, fleet, opts), ro)
 
 
 def cmd_set(args) -> int:
@@ -251,8 +278,8 @@ def cmd_set(args) -> int:
     cockpit_host, self_pane = _cockpit(fleet)
     opts = plan_set.SetOptions(targets=args.targets, host=args.host, no_prompt=args.no_prompt,
                                include_local=args.include_local, approved=args.yes, self_pane=self_pane,
-                               cockpit_host=cockpit_host, probes=_probes(fleet, args))
-    return _run_plan(args, fleet, plan_set.plan_set(ro, fleet, opts))
+                               cockpit_host=cockpit_host, probes=_probes(fleet, args, _kinds(ro)))
+    return _run_plan(args, fleet, plan_set.plan_set(ro, fleet, opts), ro)
 
 
 def cmd_relieve(args) -> int:
@@ -282,8 +309,8 @@ def cmd_relieve(args) -> int:
         resume_done=resume_done, approved=args.yes, include_local=args.include_local,
         expected_version=args.expected_version, allow_reboot=args.allow_reboot, force=args.force,
         force_server_stop=args.force_server_stop, self_pane=self_pane, cockpit_host=cockpit_host,
-        action_options=action_opts, probes=_probes(fleet, args), run_id=run_id)
-    return _run_plan(args, fleet, plan_relieve.plan_relieve(ro, fleet, opts))
+        action_options=action_opts, probes=_probes(fleet, args, _kinds(ro)), run_id=run_id)
+    return _run_plan(args, fleet, plan_relieve.plan_relieve(ro, fleet, opts), ro)
 
 
 def cmd_status(args) -> int:

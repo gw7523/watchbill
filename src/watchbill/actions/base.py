@@ -36,6 +36,7 @@ class RemoteCmd:
     mutating: bool = True
     via: str = "shell"        # "shell" → HostSession.shell, "herdr" → HostSession.herdr (session-scoped)
     unverified: bool = False  # UNVERIFIED-0.8.2 flag; dry-run shows it
+    before_stop: bool = True  # run before `session stop` (default: needs no running server)
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,12 @@ class BaseAction:
     @property
     def options(self) -> dict:
         return self.ctx.options
+
+    def park_kinds_for(self, host: Host, probe: Probe) -> frozenset[str] | None:
+        """Agent kinds to park on this host (None = every kind). Defaults to
+        the blast radius; actions that upgrade per-kind narrow it to what
+        ``commands`` will actually touch."""
+        return self.blast_radius().park_kinds
 
     def probe(self, host: Host) -> Probe:
         p = self.ctx.probes.get(host.name)

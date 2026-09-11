@@ -148,6 +148,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                       "zoomed": lay.get("zoomed", False)}
                 tab_shapes[lay["tab_id"]] = ts
                 ws_shapes[lay["workspace_id"]]["tabs"].append(ts)
+            seen_labels: dict[tuple[str, str], int] = {}
             for pane in snap.get("panes", []):
                 pid = pane["pane_id"]
                 wsid, tid = pane["workspace_id"], pane["tab_id"]
@@ -156,6 +157,9 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 tab_label = str(tab.get("label") or tab.get("number") or "1")
                 idx = order.get(tid, [pid]).index(pid) + 1
                 pane_label = pane.get("name") or pane.get("agent_name") or f"p{idx}"
+                n = seen_labels[(tid, pane_label)] = seen_labels.get((tid, pane_label), 0) + 1
+                if n > 1:   # two agents both named "claude" in one tab must not share a slot
+                    pane_label = f"{pane_label}#{idx}"
                 human_id = f"{hf.host}/{sf.name}/{ws_label}/{tab_label}/{pane_label}"
                 cls = _classify.classify(pane, sf.process_info.get(pid))
                 sess = pane.get("agent_session") if cls.role == "agent" else None
