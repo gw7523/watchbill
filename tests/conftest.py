@@ -115,24 +115,31 @@ class FakeSession:
     mutation fails loudly."""
 
     def __init__(self, host, session, fleet_json, *, allow_mutation=False, agent_gone: set[str] | None = None):
+        from watchbill.transport.base import backend_for
         self.host = host
         self.session = session
+        self.backend = backend_for(host)
         self.data = fleet_json.get(host.name, {}).get("sessions", {}).get(session)
         self.allow_mutation = allow_mutation
         self.calls: list[tuple[str, ...]] = []
         self.agent_gone = agent_gone or set()
         self._n = 100
 
-    def herdr_argv(self, *args):
-        return [self.host.herdr_bin, "--session", self.session, *args]
+    def mux_argv(self, *args):
+        return [*self.backend.cli_prefix(self.session), *args]
+
+    herdr_argv = mux_argv
 
     def shell_argv(self, argv):
         return list(argv)
 
+    def mux(self, *args, timeout=30.0):
+        return self.herdr(*args, timeout=timeout)
+
     def herdr(self, *args, timeout=30.0):
         self.calls.append(("herdr", *args))
         argv = self.herdr_argv(*args)
-        if is_mutating(argv) and not self.allow_mutation:
+        if self.backend.is_mutating(list(args)) and not self.allow_mutation:
             raise AssertionError(f"mutating verb reached the transport: {' '.join(argv)}")
         if self.data is None:
             return CmdResult(tuple(argv), 1, "", "no such host/session")

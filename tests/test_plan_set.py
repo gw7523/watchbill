@@ -111,5 +111,5 @@ def test_extra_tabs_use_tab_create(roster, fleet, probes, fleet_json, allowlist)
 def test_no_pane_layout_current_anywhere(roster, fleet, probes):
     p = plan_set(roster, fleet, opts(probes))
     assert not any("--current" in s.argv for s in p.steps)
-    split = next(s for s in p.steps if s.verb == ("pane", "split") and "--pane" in s.raw)
-    assert split.raw[split.raw.index("--pane") + 1] == "w4:p1"
+    split = next(s for s in p.steps if s.verb == ("pane", "split"))
+    assert split.raw[2] == "w4:p1"          # explicit positional pane id (verified), never --current

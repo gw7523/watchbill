@@ -8,8 +8,9 @@ session; the long-form documents it points at are the authority.
 
 Watchbill is a cockpit CLI that catalogs (`roll`/`snap`), stands down
 (`secure`), restores (`set`), and runs maintenance windows (`relieve`) over
-coding-agent fleets inside **Herdr 0.8.2** sessions (protocol 20), over SSH
-or Tailscale. Plugin id `sfl.watchbill`. Python 3.11+, stdlib at runtime,
+coding-agent fleets inside terminal multiplexers — **Herdr 0.8.2**
+(protocol 20) first, **tmux 3.x**, and **cmux** (macOS, docs-verified
+only) — over SSH or Tailscale. One mux per host (`mux =` in hosts.toml). Plugin id `sfl.watchbill`. Python 3.11+, stdlib at runtime,
 `uv` for everything else. Apache-2.0. Personal repo `gw7523/watchbill`.
 
 ## Read in this order
@@ -20,8 +21,13 @@ or Tailscale. Plugin id `sfl.watchbill`. Python 3.11+, stdlib at runtime,
    wins on process, the spec wins on behaviour if it ever lands.
 2. [`docs/architecture.md`](docs/architecture.md) — module map, sequences,
    pitfalls→tests table, and the **UNVERIFIED-0.8.2** list with fallbacks.
-3. [`docs/herdr-0.8.2-facts.md`](docs/herdr-0.8.2-facts.md) — what was read
-   from a live 0.8.2 box. Check here before touching any `herdr` argv.
+   [`docs/mux-backends.md`](docs/mux-backends.md) — the mux axis (herdr /
+   tmux / cmux), capability matrix, per-mux action table.
+3. [`docs/herdr-0.8.2-facts.md`](docs/herdr-0.8.2-facts.md),
+   [`docs/tmux-3.7-facts.md`](docs/tmux-3.7-facts.md),
+   [`docs/cmux-facts.md`](docs/cmux-facts.md) — what was read from a live
+   box (or, for cmux, the published CLI reference). Check here before
+   touching any mux argv.
 4. [`CONTRIBUTING.md`](CONTRIBUTING.md) — the four rules.
 5. The latest file in [`docs/reviews/`](docs/reviews/) — open findings.
 
@@ -57,9 +63,14 @@ uv run watchbill relieve upgrade-agents --host ser6 --probes-json tests/fixtures
   declare blast radius.** Every mutating verb is dry-run until `--yes`.
 - Never key on `w1:p2`. `slot_id` (ULID) / `human_id` only; `live_ids` are
   hints rewritten after `set`.
-- Never invent a Herdr flag. Read `herdr <cmd> --help` on a 0.8.2 host, add
-  the fact to `docs/herdr-0.8.2-facts.md`, or mark it `UNVERIFIED-0.8.2`
-  with a fallback in `docs/architecture.md`.
+- Never invent a mux flag. Read `herdr <cmd> --help` / `tmux list-commands`
+  on a live host (a throwaway `tmux -L probe` server is fine; kill it), add
+  the fact to the matching `docs/*-facts.md`, or mark it `UNVERIFIED-*`
+  with a fallback. cmux cannot be probed from Linux: keep it docs-verified
+  and fail closed on anything the reference does not list.
+- Backends are pure argv builders + parsers (`src/watchbill/mux/`). Planners
+  ask the backend and the `Capabilities`; a missing capability is a
+  `Refusal` or a note, never a guess. A cmux relaunch is a `MANUAL` step.
 - Never emit `herdr update` on a pacman/mise/brew/nix host, `herdr server
   stop` without `--force-server-stop`, `herdr machine`, `pane … --current`,
   `herdr --remote` as a default, or `agent prompt` to a blocked agent.

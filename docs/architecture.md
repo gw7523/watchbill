@@ -23,6 +23,13 @@ is designed as if PTY adoption existed.
 
 ## Module map
 
+> Second pass (2026-09-11, [mux-backends.md](mux-backends.md)): the
+> multiplexer became a per-host axis. `src/watchbill/mux/` holds the
+> backends (herdr, tmux, cmux) and `detect.py` the agent-status heuristics
+> for muxes without native agent awareness. Planners and exec go through
+> the backend; everything below that describes Herdr still holds for the
+> herdr backend.
+
 ```
 src/watchbill/
   cli.py              parse, dispatch, exit codes. No herdr calls.
@@ -41,6 +48,8 @@ src/watchbill/
   roster.py           Roster/Occupant/Shape; load/save/merge; occupant guard; current.json
   slots.py            ULID slot_id store keyed by human_id, then agent_session
   resume.py           native resume argv table with verify column               [added]
+  mux/                mux backends: base (protocol, Capabilities, MuxSnapshot), herdr, tmux, cmux   [pass 2]
+  detect.py           agent status heuristics (quiet time + approval-prompt patterns)              [pass 2]
   prompts.py          pinned > role template > excerpt-drafted resume prompts
   plan_secure.py      pure: roster → stand-down Plan (detach|park|fold|dismiss|host)
   plan_set.py         pure: roster → fall-in Plan (start, attach, shape, resume, relaunch, prompt)
@@ -328,6 +337,9 @@ table: `pane send-text`, `pane split [PANE_ID] --direction right|down --cwd
 <target>`, `agent wait --until unknown`, `plugin install --yes [--ref]`
 (bare, no `--session`, before any stop), `integration install <kind>`,
 `session.json` paths.
+
+Multiplexer axis (pass 2): see [mux-backends.md](mux-backends.md) for the
+capability matrix, the per-mux action table, and the tmux / cmux UNVERIFIED lists.
 
 Review history: [reviews/2026-09-11-grok-review.md](reviews/2026-09-11-grok-review.md)
 (approve-with-nits; every should-fix item is addressed in the follow-up

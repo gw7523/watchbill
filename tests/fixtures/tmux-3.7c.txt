@@ -1,0 +1,12 @@
+# captured 2026-09-11 from `tmux -L wbprobe …` on tmux 3.7c; three outputs separated by "---"
+alpha|$0|2|0|1789159586
+beta|$1|1|0|1789159586
+---
+alpha|1|@0|edit|8205,80x24,0,0{40x24,0,0,0,39x24,41,0,1}|2
+alpha|2|@1|logs|b25f,80x24,0,0,2|1
+beta|1|@2|tmp|b260,80x24,0,0,3|1
+---
+alpha|$0|1|@0|edit|1|%0|3345069|claude|/home/u/Work/api|RIG2|0|1789159586|40x24|0,0|/dev/pts/6
+alpha|$0|1|@0|edit|2|%1|3345072|watchexec|/home/u/Work/api|RIG2|1|1789159586|39x24|41,0|/dev/pts/9
+alpha|$0|2|@1|logs|1|%2|3345075|claude|/home/u/Work/api|RIG2|1|1789159586|80x24|0,0|/dev/pts/10
+beta|$1|1|@2|tmp|1|%3|3345078|bash|/tmp|holloway@RIG2:/tmp|1|1789159586|80x24|0,0|/dev/pts/11

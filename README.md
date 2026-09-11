@@ -1,8 +1,12 @@
 # Watchbill
 
 Cockpit CLI that catalogs, parks, and restores coding-agent fleets running
-inside [Herdr](https://herdr.dev) 0.8.2 sessions, on one machine or many,
-over SSH / Tailscale. Plugin id `sfl.watchbill`.
+inside terminal multiplexers — [Herdr](https://herdr.dev) 0.8.2 first,
+tmux 3.x, and cmux (macOS) — on one machine or many, over SSH / Tailscale.
+Plugin id `sfl.watchbill`. The job it does is the same on every mux: know
+what is running where, stand it down cleanly, bring it back with each
+agent's conversation, and wrap plugin installs, upgrades and harness
+restarts around that cycle.
 
 > **Status: architecture + skeleton.** Planners, schema, tests, and dry-run
 > plans are real. Live transports (`local`, `ssh_cli`) raise
@@ -22,6 +26,7 @@ over SSH / Tailscale. Plugin id `sfl.watchbill`.
 8. Every mutating verb is a **dry-run** until `--yes`. Working agents are refused without `--force`. Blocked agents are never typed into. The cockpit host is skipped without `--include-local`.
 9. `current.json` points at the last **good** roster. An **occupant guard** refuses to retarget it when the count drops by half or below two (reboot can write an empty `session.json`, #3415).
 10. Transport is SSH + remote `herdr --session S`, not `herdr --remote`; see the warning below.
+11. **Mux is a per-host choice** (`mux = "herdr" | "tmux" | "cmux"` in `hosts.toml`). Herdr knows agents natively; tmux gets role from argv, status from quiet-time + approval-prompt patterns, and resume from each CLI's cwd-scoped `--continue` (refused when ambiguous); cmux is docs-verified only and fails closed on anything undocumented. See [docs/mux-backends.md](docs/mux-backends.md).
 
 ## Install
 
@@ -55,6 +60,16 @@ name = "ser6"
 target = "ser6.tail1234.ts.net"
 sessions = ["default"]
 start = "systemctl --user start herdr.service"
+
+[[host]]
+name = "mac"
+target = "mac.tail1234.ts.net"
+mux = "tmux"                 # server socket names go in sessions (default: ["default"])
+
+[[host]]
+name = "air"
+target = "air.tail1234.ts.net"
+mux = "cmux"                 # macOS app; docs-verified verbs, MANUAL relaunch steps
 ```
 
 ## Command cheat sheet
@@ -82,11 +97,12 @@ Actions for `relieve`:
 
 | action | parks | session stop | use |
 |---|---|---|---|
-| `upgrade-herdr` | agents | yes | new herdr binary (mise/brew/official; pacman refused, see below) |
+| `upgrade-mux` (alias `upgrade-herdr`) | agents | yes | new herdr/tmux/cmux binary (mise/brew/official; pacman refused, see below; cmux needs a manual relaunch) |
+| `reload-config` | nothing | **no** | live config re-read: `herdr server reload-config`, `tmux source-file`; refused on cmux |
 | `restart-herdr` | agents | yes | binary already replaced |
 | `omarchy-update` | agents | yes | `omarchy-update -y` on an Omarchy host |
 | `upgrade-agents [--kinds claude,codex]` | matching agents | **no** | CLI bump; agents come back on the new binary with `--resume` |
-| `install-plugin --plugin owner/repo [--startup-hooks]` | agents if startup hooks | if startup hooks | `herdr plugin install` |
+| `install-plugin --plugin owner/repo [--startup-hooks]` | agents if startup hooks | if startup hooks | `herdr plugin install`; tmux: TPM + `source-file` (live); refused on cmux |
 | `restart-harness` | agents | yes | plugin / integration / config bounce |
 | `custom --cmd … [--park roles] [--session-stop]` | declared | declared | anything else |
 
@@ -115,7 +131,7 @@ before any `agent start`.
 ```
 AGENTS.md          agent bootstrap: read order, status, work loop, rules (CLAUDE.md points here)
 src/watchbill/     package (see docs/architecture.md for the module map)
-docs/              architecture, roster JSON schema, verified 0.8.2 facts, build contract
+docs/              architecture, mux-backends design, roster JSON schema, verified herdr/tmux/cmux facts, build contract
 tests/             pytest; fixtures are recorded snapshot / process-info JSON
 skills/watchbill/  SKILL.md for a chief-of-staff agent
 plugin/            herdr-plugin.toml — thin wrapper, no logic
