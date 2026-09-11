@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gw7523/watchbill/docs/roster.schema.json",
+  "title": "Watchbill roster, schema 1",
+  "description": "One fleet-wide catalog of Herdr occupants taken at one instant. Durable keys are slot_id and human_id; live_ids are per-server-generation hints.",
+  "type": "object",
+  "required": ["schema", "fleet", "taken_at", "reason", "cockpit", "hosts", "shapes", "occupants"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": 1 },
+    "fleet": { "type": "string", "minLength": 1 },
+    "taken_at": { "type": "string", "format": "date-time" },
+    "reason": { "type": "string", "enum": ["manual", "heartbeat", "pre-relieve", "post-set", "pre-secure", "post-secure"] },
+    "cockpit": {
+      "type": "object",
+      "description": "Where this roster was taken. pane_id is HERDR_PANE_ID of the Watchbill pane (skipped by secure).",
+      "properties": {
+        "host": { "type": ["string", "null"] },
+        "pane_id": { "type": ["string", "null"] },
+        "session": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "hosts": { "type": "array", "items": { "$ref": "#/$defs/host" } },
+    "shapes": { "type": "array", "items": { "$ref": "#/$defs/shape" } },
+    "occupants": { "type": "array", "items": { "$ref": "#/$defs/occupant" } }
+  },
+  "$defs": {
+    "slot_id": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "ULID, assigned once, stored in slots.json"
+    },
+    "human_id": {
+      "type": "string",
+      "pattern": "^[^/]+/[^/]+/[^/]+/[^/]+/[^/]+$",
+      "description": "host/session/workspace_label/tab_label/pane_label"
+    },
+    "role": { "type": "string", "enum": ["bridge", "agent", "watcher", "poller", "server", "editor", "shell"] },
+    "agent_status": { "type": ["string", "null"], "enum": ["idle", "working", "blocked", "done", "unknown", null] },
+    "live_ids": {
+      "type": "object",
+      "description": "Hints for this process generation only (Herdr never reuses closed ids). Rewritten after set.",
+      "properties": {
+        "workspace_id": { "type": ["string", "null"] },
+        "tab_id": { "type": ["string", "null"] },
+        "pane_id": { "type": ["string", "null"] },
+        "terminal_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "agent_session": {
+      "description": "Herdr integration report; null when unref (integration has not reported, common for Codex).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["value"],
+          "properties": {
+            "agent": { "type": "string" },
+            "kind": { "type": "string" },
+            "source": { "type": "string" },
+            "value": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "resume_prompt": {
+      "type": "object",
+      "required": ["source", "text"],
+      "properties": {
+        "source": { "type": "string", "enum": ["pinned", "role", "excerpt", "none"] },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "host": {
+      "type": "object",
+      "required": ["host", "reachable", "herdr"],
+      "properties": {
+        "host": { "type": "string" },
+        "reachable": { "type": "boolean" },
+        "cockpit": { "type": "boolean" },
+        "error": { "type": ["string", "null"] },
+        "herdr": {
+          "type": "object",
+          "properties": {
+            "version": { "type": ["string", "null"] },
+            "protocol": { "type": ["integer", "null"] },
+            "flavor": { "type": "string", "enum": ["pacman", "mise", "brew", "nix", "official", "unknown"] },
+            "socket": { "type": ["string", "null"] },
+            "live_handoff": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "shape": {
+      "type": "object",
+      "description": "Label-keyed layout of one session; no commands (pitfall 3: commands come from process_info).",
+      "required": ["host", "session", "workspaces"],
+      "properties": {
+        "host": { "type": "string" },
+        "session": { "type": "string" },
+        "workspaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "tabs"],
+            "properties": {
+              "label": { "type": "string" },
+              "number": { "type": ["integer", "null"] },
+              "workspace_id": { "type": ["string", "null"], "description": "live hint" },
+              "cwd": { "type": ["string", "null"] },
+              "tabs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["label", "panes"],
+                  "properties": {
+                    "label": { "type": "string" },
+                    "number": { "type": ["integer", "null"] },
+                    "tab_id": { "type": ["string", "null"] },
+                    "zoomed": { "type": "boolean" },
+                    "splits": { "type": "array", "description": "Herdr layout splits, verbatim, for a socket transport's layout.apply" },
+                    "panes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["pane_label", "slot_id"],
+                        "properties": {
+                          "pane_label": { "type": "string" },
+                          "slot_id": { "$ref": "#/$defs/slot_id" },
+                          "pane_id": { "type": ["string", "null"] },
+                          "cwd": { "type": ["string", "null"] },
+                          "rect": { "type": ["object", "null"] }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "occupant": {
+      "type": "object",
+      "required": ["slot_id", "human_id", "host", "session", "workspace_label", "tab_label", "pane_label",
+                   "role", "agent_session", "resume_argv", "resume_prompt", "allow_relaunch", "live_ids"],
+      "properties": {
+        "slot_id": { "$ref": "#/$defs/slot_id" },
+        "human_id": { "$ref": "#/$defs/human_id" },
+        "host": { "type": "string" },
+        "session": { "type": "string" },
+        "workspace_label": { "type": "string" },
+        "tab_label": { "type": "string" },
+        "pane_label": { "type": "string" },
+        "role": { "$ref": "#/$defs/role" },
+        "kind": { "type": ["string", "null"], "description": "agent kind (herdr agent start --kind)" },
+        "agent_status": { "$ref": "#/$defs/agent_status" },
+        "argv": { "type": "array", "items": { "type": "string" } },
+        "cmdline": { "type": "string" },
+        "cwd": { "type": "string" },
+        "foreground_cwd": { "type": ["string", "null"], "description": "preferred over cwd when present (pitfall 4)" },
+        "agent_session": { "$ref": "#/$defs/agent_session" },
+        "resume_argv": {
+          "oneOf": [ { "type": "null" }, { "type": "array", "items": { "type": "string" }, "minItems": 1 } ],
+          "description": "argv handed to `herdr agent start … --`; null when unref or kind unknown"
+        },
+        "resume_prompt": { "$ref": "#/$defs/resume_prompt" },
+        "allow_relaunch": { "type": "boolean" },
+        "live_ids": { "$ref": "#/$defs/live_ids" },
+        "tasking": { "type": ["string", "null"] },
+        "excerpt": { "type": ["string", "null"], "description": "cockpit-local; stripped unless snap.excerpt_sync" },
+        "taken_at": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
