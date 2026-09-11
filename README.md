@@ -113,6 +113,7 @@ before any `agent start`.
 ## Layout
 
 ```
+AGENTS.md          agent bootstrap: read order, status, work loop, rules (CLAUDE.md points here)
 src/watchbill/     package (see docs/architecture.md for the module map)
 docs/              architecture, roster JSON schema, verified 0.8.2 facts, build contract
 tests/             pytest; fixtures are recorded snapshot / process-info JSON
