@@ -25,6 +25,7 @@ class StepKind(str, Enum):
     WAIT = "wait"          # herdr agent wait / pane wait; read-only
     JOURNAL = "journal"    # journal checkpoint (host marked set-complete, etc.)
     NOTE = "note"          # human-readable marker in dry-run output
+    MANUAL = "manual"      # operator does something by hand; exec waits for confirmation (cmux relaunch)
 
 
 # (group, sub) pairs. A leading "herdr", "--session <S>" and other global
@@ -144,13 +145,18 @@ class Step:
     # step's JSON result yields; exec fills the placeholder map from it.
     creates: str | None = None
     unverified: bool = False
-    # via: which transport primitive runs `raw`: herdr | shell | local | none
+    # via: which transport primitive runs `raw`: mux | herdr (= mux, legacy) | shell | local | none
     via: str = "none"
+    mux: str = "herdr"     # backend whose CLI `raw` addresses when via == mux
 
     @property
     def verb(self) -> tuple[str, ...]:
-        if self.via == "herdr" and self.raw:
-            return herdr_verb(("herdr", *self.raw))
+        """Herdr verb tuple for herdr-mux steps; for tmux/cmux the first
+        token (``send-keys``, ``kill-server``) as a one-tuple."""
+        if self.via in ("herdr", "mux") and self.raw:
+            if self.mux == "herdr":
+                return herdr_verb(("herdr", *self.raw))
+            return (self.raw[0],)
         return herdr_verb(self.argv) if self.kind in (StepKind.HERDR, StepKind.WAIT) else ()
 
 
@@ -245,6 +251,8 @@ def check_verbs_allowed(steps: Iterable[Step], *, force_server_stop: bool = Fals
         v = s.verb
         if v == ("server", "stop") and not force_server_stop:
             bad.append(f"{s.id}: herdr server stop requires --force-server-stop")
+        if s.mux == "tmux" and v == ("kill-server",) and not force_server_stop:
+            bad.append(f"{s.id}: tmux kill-server requires --force-server-stop")
         if v and v[0] == "machine":
             bad.append(f"{s.id}: herdr machine is not a 0.8.2 dependency")
     return bad

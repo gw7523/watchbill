@@ -15,7 +15,8 @@
     name = "ser6"
     target = "ser6.tail1234.ts.net"   # ssh target (user@host ok)
     transport = "ssh_cli"             # default
-    sessions = ["default"]
+    mux = "herdr"                     # herdr (default) | tmux | cmux — which multiplexer owns the PTYs
+    sessions = ["default"]            # herdr session names, or tmux server socket names (-L)
     start  = "systemctl --user start herdr.service"   # optional; default is UNVERIFIED-0.8.2
     attach = "herdr session attach {session}"        # optional viewport command (#2064)
     herdr_bin = "herdr"
@@ -31,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 TRANSPORTS = ("local", "ssh_cli", "ssh_socket", "herdr_remote")
+MUXES = ("herdr", "tmux", "cmux")
 
 # UNVERIFIED-0.8.2: headless session start. See docs/herdr-0.8.2-facts.md.
 DEFAULT_START = "herdr --session {session} server"
@@ -49,6 +51,8 @@ class Host:
     herdr_bin: str = "herdr"
     connect_timeout: int = 5
     remote_verified: bool = False   # set by doctor when cockpit and remote herdr versions match
+    mux: str = "herdr"              # herdr | tmux | cmux
+    mux_options: dict = field(default_factory=dict)   # e.g. tmux idle_after_s, conf; cmux socket
 
     def start_cmd(self, session: str) -> str:
         return self.start.format(session=session)
@@ -91,11 +95,17 @@ def parse(text: str, *, hostname: str | None = None) -> Fleet:
             raise ValueError(f"host {h['name']}: unknown transport {transport!r}")
         if transport != "local" and not h.get("target"):
             raise ValueError(f"host {h['name']}: transport {transport} needs target")
+        mux = h.get("mux", "herdr")
+        if mux not in MUXES:
+            raise ValueError(f"host {h['name']}: unknown mux {mux!r}")
+        if mux != "herdr" and transport == "herdr_remote":
+            raise ValueError(f"host {h['name']}: herdr_remote transport only reaches a herdr mux")
         hosts.append(Host(
             name=h["name"], target=h.get("target"), transport=transport,
             sessions=list(h.get("sessions", ["default"])), cockpit=bool(h.get("cockpit", False)),
             start=h.get("start", DEFAULT_START), attach=h.get("attach", DEFAULT_ATTACH),
             herdr_bin=h.get("herdr_bin", "herdr"), connect_timeout=int(h.get("connect_timeout", 5)),
+            mux=mux, mux_options=dict(h.get("mux_options", {})),
         ))
     if hostname and not any(x.cockpit for x in hosts):
         # If the running machine is listed by name, it is the cockpit.

@@ -44,5 +44,14 @@ def resume_argv(kind: str | None, session_id: str | None) -> list[str] | None:
     return [tok.replace("{id}", session_id) for tok in RESUME[kind].argv]
 
 
+def continue_argv(kind: str | None) -> list[str] | None:
+    """cwd-scoped 'continue the most recent conversation here' form, for
+    muxes without a native session id (tmux, cmux without a binding).
+    Ambiguous when two agents of one kind share a cwd: the caller guards."""
+    if not kind or kind not in RESUME or not RESUME[kind].fallback:
+        return None
+    return list(RESUME[kind].fallback)
+
+
 def is_verified(kind: str | None) -> bool:
     return bool(kind and kind in RESUME and RESUME[kind].verified)

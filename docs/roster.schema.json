@@ -37,6 +37,8 @@
       "description": "host/session/workspace_label/tab_label/pane_label"
     },
     "role": { "type": "string", "enum": ["bridge", "agent", "watcher", "poller", "server", "editor", "shell"] },
+    "mux": { "type": "string", "enum": ["herdr", "tmux", "cmux"], "default": "herdr",
+             "description": "Multiplexer that owns the PTYs. Optional with a default: added inside schema 1 (additive rule)." },
     "agent_status": { "type": ["string", "null"], "enum": ["idle", "working", "blocked", "done", "unknown", null] },
     "live_ids": {
       "type": "object",
@@ -83,6 +85,7 @@
         "reachable": { "type": "boolean" },
         "cockpit": { "type": "boolean" },
         "error": { "type": ["string", "null"] },
+        "mux": { "$ref": "#/$defs/mux" },
         "herdr": {
           "type": "object",
           "properties": {
@@ -104,6 +107,7 @@
       "properties": {
         "host": { "type": "string" },
         "session": { "type": "string" },
+        "mux": { "$ref": "#/$defs/mux" },
         "workspaces": {
           "type": "array",
           "items": {
@@ -124,6 +128,7 @@
                     "number": { "type": ["integer", "null"] },
                     "tab_id": { "type": ["string", "null"] },
                     "zoomed": { "type": "boolean" },
+                    "layout": { "type": ["string", "null"], "description": "tmux window_layout string; re-applied verbatim with select-layout" },
                     "splits": { "type": "array", "description": "Herdr layout splits, verbatim, for a socket transport's layout.apply" },
                     "panes": {
                       "type": "array",
@@ -180,7 +185,8 @@
         "live_ids": { "$ref": "#/$defs/live_ids" },
         "tasking": { "type": ["string", "null"] },
         "excerpt": { "type": ["string", "null"], "description": "cockpit-local; stripped unless snap.excerpt_sync" },
-        "taken_at": { "type": "string" }
+        "taken_at": { "type": "string" },
+        "mux": { "$ref": "#/$defs/mux" }
       },
       "additionalProperties": false
     }

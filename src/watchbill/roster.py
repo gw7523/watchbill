@@ -65,6 +65,7 @@ class Occupant:
     tasking: str | None = None
     excerpt: str | None = None   # cockpit-local unless snap.excerpt_sync
     taken_at: str = ""
+    mux: str = "herdr"           # which multiplexer owns this pane (additive, schema 1)
 
     @property
     def effective_cwd(self) -> str:
@@ -83,6 +84,7 @@ class HostRecord:
     herdr: dict = field(default_factory=dict)   # version, protocol, flavor, socket, live_handoff
     error: str | None = None
     cockpit: bool = False
+    mux: str = "herdr"
 
 
 @dataclass
@@ -94,6 +96,7 @@ class Shape:
     host: str
     session: str
     workspaces: list[dict] = field(default_factory=list)
+    mux: str = "herdr"
 
 
 @dataclass
