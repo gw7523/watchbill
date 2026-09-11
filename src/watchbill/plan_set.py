@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 
 from .doctor import Probe
 from .hosts import Fleet, Host
-from .plan import Plan, Step, StepKind
-from .plan_secure import SecureOptions, herdr_step, select
+from .plan import Plan, Refusal, Step, StepKind
+from .plan_secure import SecureOptions, backend_of, mux_step, select
 from .resume import is_verified
 from .roster import Occupant, Roster
 
@@ -57,15 +57,28 @@ def _live_ids(live: Roster | None, o: Occupant) -> Occupant | None:
     return live.by_slot(o.slot_id) or live.by_human(o.human_id)
 
 
-def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str) -> None:
-    """Start a session with the host's `start` capability, then wait for the
-    server to answer. The default start command is UNVERIFIED-0.8.2."""
-    argv = ["sh", "-c", host.start_cmd(session)]
-    plan.add(Step(id=f"{tag}start", kind=StepKind.SHELL, host=host.name, session=session,
-                  description=f"start session {session} ({host.start_cmd(session)})", argv=tuple(argv),
-                  raw=tuple(argv), mutating=True, via="shell", unverified=host.start_cmd(session).startswith("herdr --session")))
-    herdr_step(plan, fleet, f"{tag}up", host.name, session, "wait for the server to answer",
-               "status", "server", "--json", kind=StepKind.WAIT)
+def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str, first_label: str = "watchbill",
+                cwd: str = "~") -> None:
+    """Start a session. herdr: the host's `start` capability (systemd unit on
+    Omarchy; the built-in default is UNVERIFIED-0.8.2). tmux: `new-session -d`
+    (verified). cmux: a MANUAL relaunch followed by `restore-session`."""
+    be = backend_of(fleet, host.name)
+    native = be.session_start(session, first_label, cwd)
+    if be.name == "cmux":
+        plan.add(Step(id=f"{tag}start", kind=StepKind.MANUAL, host=host.name, session=session, mux="cmux", mutating=True,
+                      description="MANUAL: launch cmux on the Mac (no CLI relaunch exists), then continue"))
+        mux_step(plan, fleet, f"{tag}restore", host.name, session, "cmux restore-session (re-apply the saved layout)",
+                 *be.restore_session(), unverified=True)
+        return
+    if native and be.name == "tmux":
+        mux_step(plan, fleet, f"{tag}start", host.name, session, f"start tmux server {session} with first session {first_label}",
+                 *native, creates=f"boot:{host.name}/{session}")
+    else:
+        argv = ["sh", "-c", host.start_cmd(session)]
+        plan.add(Step(id=f"{tag}start", kind=StepKind.SHELL, host=host.name, session=session, mux=host.mux,
+                      description=f"start session {session} ({host.start_cmd(session)})", argv=tuple(argv),
+                      raw=tuple(argv), mutating=True, via="shell", unverified=host.start_cmd(session).startswith("herdr --session")))
+    mux_step(plan, fleet, f"{tag}up", host.name, session, "wait for the server to answer", *be.status_argv(), kind=StepKind.WAIT)
 
 
 def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_host: str | None,
@@ -74,23 +87,27 @@ def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_
     The viewport is a pane split off the cockpit's own Herdr pane running
     ``ssh -tt <target> -- herdr session attach <S>`` (or the local attach)."""
     cockpit = fleet.cockpit
-    if cockpit is None or not self_pane:
+    be = backend_of(fleet, host.name)
+    if not be.caps.needs_viewport:
+        return   # tmux send-keys and cmux send need no attached client
+    if cockpit is None or not self_pane or cockpit.mux != "herdr":
         plan.add(Step(id=f"{tag}att", kind=StepKind.NOTE, host=host.name, session=session,
                       description="#2064: attach a client to this session by hand before agents resume "
                                   "(Watchbill is not running inside Herdr, so it cannot split a viewport)"))
         return
     key = f"viewport:{host.name}/{session}"
-    herdr_step(plan, fleet, f"{tag}att1", cockpit.name, cockpit.sessions[0],
-               f"split a viewport pane off the cockpit pane {self_pane} (explicit id, never --current)",
-               "pane", "split", "--pane", self_pane, "--direction", "down", "--no-focus", creates=key)
+    cbe = backend_of(fleet, cockpit.name)
+    mux_step(plan, fleet, f"{tag}att1", cockpit.name, cockpit.sessions[0],
+             f"split a viewport pane off the cockpit pane {self_pane} (explicit id, never --current)",
+             *cbe.pane_split(self_pane, "down", "~"), creates=key)
     attach = host.attach_cmd(session)
     if host.transport == "local":
         cmd = ["sh", "-c", attach]
     else:
         cmd = ["ssh", "-tt", "-o", "BatchMode=yes", host.target or host.name, "--", attach]
-    herdr_step(plan, fleet, f"{tag}att2", cockpit.name, cockpit.sessions[0],
-               f"#2064 viewport: attach a client to {host.name}/{session}",
-               "pane", "run", f"{{pane:{key}}}", *cmd, placeholders=True)
+    mux_step(plan, fleet, f"{tag}att2", cockpit.name, cockpit.sessions[0],
+             f"#2064 viewport: attach a client to {host.name}/{session}",
+             *cbe.pane_run(f"{{pane:{key}}}", cmd, "~"), placeholders=True)
 
 
 def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant], *, probes: dict[str, Probe],
@@ -103,22 +120,30 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
     for (host_name, session), occs in sorted(groups.items()):
         g += 1
         host = fleet.host(host_name) or Host(name=host_name, transport="local")
+        be = backend_of(fleet, host_name)
         p = f"{tag}{g}."
         # 1. reach
-        herdr_step(plan, fleet, f"{p}reach", host_name, session, "reach host / server status",
-                   "status", "server", "--json")
+        mux_step(plan, fleet, f"{p}reach", host_name, session, f"reach host / {be.name} status", *be.status_argv())
         # 2. start if needed
         probe = probes.get(host_name)
         running = assume_running if assume_running is not None else (probe.running if probe else False)
+        shape = roster.shape_for(host_name, session)
+        first_ws = shape.workspaces[0] if shape and shape.workspaces else None
+        booted_slot = None
         if not running:
-            start_steps(plan, fleet, host, session, tag=p)
+            start_steps(plan, fleet, host, session, tag=p, first_label=(first_ws or {}).get("label", "watchbill"),
+                        cwd=(first_ws or {}).get("cwd") or "~")
+            if be.name == "tmux" and first_ws:
+                # new-session -d already created the first workspace's root pane
+                booted_slot = first_ws["tabs"][0]["panes"][0]["slot_id"] if first_ws.get("tabs") and first_ws["tabs"][0]["panes"] else None
         # 3. viewport
         if not skip_attach:
             attach_steps(plan, fleet, host, session, cockpit_host=cockpit_host, self_pane=self_pane, tag=p)
         # 4. shape by labels
-        shape = roster.shape_for(host_name, session)
         wanted_slots = {o.slot_id for o in occs}
         created: set[str] = set()
+        if booted_slot and booted_slot in wanted_slots:
+            plan.notes.append(f"{host_name}: first workspace root pane comes from the tmux server start (boot:{host_name}/{session})")
         if shape:
             for ws in shape.workspaces:
                 tabs = [(t, [pn for pn in t["panes"] if pn["slot_id"] in wanted_slots]) for t in ws["tabs"]]
@@ -134,28 +159,39 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                     first = panes[0]
                     if ws_live:
                         pass
+                    elif first["slot_id"] == booted_slot:
+                        created.add(first["slot_id"])   # placeholder filled by the start step
                     elif ti == 0:
-                        herdr_step(plan, fleet, f"{p}ws.{ws['label']}", host_name, session,
-                                   f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
-                                   "workspace", "create", "--label", ws["label"], "--cwd", first.get("cwd") or ws.get("cwd") or "~",
-                                   "--no-focus", creates=first["slot_id"])
+                        mux_step(plan, fleet, f"{p}ws.{ws['label']}", host_name, session,
+                                 f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
+                                 *be.workspace_create(ws["label"], first.get("cwd") or ws.get("cwd") or "~"),
+                                 creates=first["slot_id"], unverified=be.caps.docs_only)
                         created.add(first["slot_id"])
                     else:
-                        herdr_step(plan, fleet, f"{p}tab.{ws['label']}.{t['label']}", host_name, session,
-                                   f"create tab {t['label']} in {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
-                                   "tab", "create", "--workspace", f"{{ws:{ws_key}}}", "--label", t["label"],
-                                   "--cwd", first.get("cwd") or "~", "--no-focus", placeholders=True, creates=first["slot_id"])
+                        tab_argv = be.tab_create(f"{{ws:{ws_key}}}", t["label"], first.get("cwd") or "~")
+                        if tab_argv is None:
+                            plan.notes.append(f"{host_name}: {be.name} has no tab create; panes of tab {t['label']} split off the first pane")
+                            continue
+                        mux_step(plan, fleet, f"{p}tab.{ws['label']}.{t['label']}", host_name, session,
+                                 f"create tab {t['label']} in {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
+                                 *tab_argv, placeholders=True, creates=first["slot_id"])
                         created.add(first["slot_id"])
-                    # UNVERIFIED-0.8.2: the exact `splits` tree format. Until captured live,
-                    # each extra pane splits off the tab's first pane by rect position.
+                    # herdr: the `splits` tree format is UNVERIFIED-0.8.2, so each extra pane splits
+                    # off the tab's first pane by rect position. tmux: the exact layout string is
+                    # re-applied afterwards (select-layout), so split direction only needs to be sane.
                     for pn in panes[1:]:
                         r0, r1 = first.get("rect") or {}, pn.get("rect") or {}
                         direction = "right" if (r1.get("x", 0) > r0.get("x", 0)) else "down"
-                        herdr_step(plan, fleet, f"{p}split.{pn['slot_id'][-6:]}", host_name, session,
-                                   f"split pane for {pn['pane_label']} ({direction})",
-                                   "pane", "split", f"{{pane:{first['slot_id']}}}", "--direction", direction,
-                                   "--cwd", pn.get("cwd") or "~", "--no-focus", placeholders=True, creates=pn["slot_id"])
+                        mux_step(plan, fleet, f"{p}split.{pn['slot_id'][-6:]}", host_name, session,
+                                 f"split pane for {pn['pane_label']} ({direction})",
+                                 *be.pane_split(f"{{pane:{first['slot_id']}}}", direction, pn.get("cwd") or "~"),
+                                 placeholders=True, creates=pn["slot_id"], unverified=be.caps.docs_only)
                         created.add(pn["slot_id"])
+                    if len(panes) > 1 and t.get("layout") and be.caps.layout_reapply and not ws_live:
+                        lay = be.layout_apply(f"{ws['label']}:{t['label']}", t["layout"])
+                        if lay:
+                            mux_step(plan, fleet, f"{p}layout.{ws['label']}.{t['label']}", host_name, session,
+                                     f"re-apply the recorded {be.name} layout for {ws['label']}:{t['label']}", *lay)
         # 5–8. occupants
         for o in occs:
             pane_tok = f"{{pane:{o.slot_id}}}" if o.slot_id in created or live is None else (
@@ -166,32 +202,41 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                 continue
             if o.role == "agent":
                 name = agent_name(o)
+                target = be.agent_target(pane_tok, name)
                 if o.resume_argv:
-                    herdr_step(plan, fleet, f"{p}{name}.start", o, session,
-                               f"resume {o.kind} conversation {o.agent_session['value'][:8]}…",
-                               "agent", "start", name, "--kind", o.kind or "", "--pane", pane_tok, "--", *o.resume_argv,
-                               precondition="pane at interactive shell prompt", placeholders=ph,
-                               unverified=not is_verified(o.kind))
+                    how = (f"resume {o.kind} conversation {o.agent_session['value'][:8]}…" if o.agent_session
+                           else f"resume {o.kind} via {' '.join(o.resume_argv)} (cwd-scoped)")
+                    for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, o.resume_argv)):
+                        mux_step(plan, fleet, f"{p}{name}.start" + (f".{j}" if j else ""), o, session, how,
+                                 *argv, precondition="pane at interactive shell prompt", placeholders=ph,
+                                 unverified=(not is_verified(o.kind)) or be.caps.docs_only)
                 else:
-                    herdr_step(plan, fleet, f"{p}{name}.start", o, session,
-                               f"start fresh {o.kind} (no agent_session recorded: unref)",
-                               "agent", "start", name, "--kind", o.kind or "", "--pane", pane_tok,
-                               precondition="pane at interactive shell prompt", placeholders=ph)
+                    why = "no agent_session recorded: unref" if be.caps.native_resume else "no unambiguous continue form"
+                    for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, None)):
+                        mux_step(plan, fleet, f"{p}{name}.start" + (f".{j}" if j else ""), o, session,
+                                 f"start fresh {o.kind} ({why})", *argv,
+                                 precondition="pane at interactive shell prompt", placeholders=ph, unverified=be.caps.docs_only)
                 text = o.resume_prompt.text
                 if no_prompt or not text:
                     if not no_prompt:
                         plan.notes.append(f"{o.human_id}: no resume prompt (pin one in pins.toml)")
                     continue
-                herdr_step(plan, fleet, f"{p}{name}.idle", o, session, "wait until idle before prompting",
-                           "agent", "wait", name, "--until", "idle", "--timeout", "90000", kind=StepKind.WAIT)
-                herdr_step(plan, fleet, f"{p}{name}.prompt", o, session,
-                           f"prompt ({o.resume_prompt.source}); Herdr rejects blocked agents with agent_blocked",
-                           "agent", "prompt", name, text, "--wait", "--until", "working", "--timeout", "10000",
-                           precondition="agent_status != blocked")
+                tph = target.startswith("{")   # herdr targets by agent name; tmux/cmux by (placeholder) pane id
+                mux_step(plan, fleet, f"{p}{name}.idle", o, session, "wait until idle before prompting",
+                         *be.agent_wait_idle(target, 90000), kind=StepKind.WAIT,
+                         placeholders=tph, unverified=be.caps.agent_status != "native")
+                for j, argv in enumerate(be.agent_prompt(target, text)):
+                    mux_step(plan, fleet, f"{p}{name}.prompt" + (f".{j}" if j else ""), o, session,
+                             f"prompt ({o.resume_prompt.source}); " + ("Herdr rejects blocked agents with agent_blocked"
+                                                                    if be.name == "herdr" else "blocked check is heuristic (screen patterns)"),
+                             *argv, precondition="agent_status != blocked", placeholders=tph)
             elif o.role in ("watcher", "poller", "server"):
                 if o.allow_relaunch and o.argv:
-                    herdr_step(plan, fleet, f"{p}run.{o.slot_id[-6:]}", o, session, f"relaunch {o.role}: {o.cmdline[:50]}",
-                               "pane", "run", pane_tok, *o.argv, placeholders=ph)
+                    mux_step(plan, fleet, f"{p}run.{o.slot_id[-6:]}", o, session, f"relaunch {o.role}: {o.cmdline[:50]}",
+                             *be.pane_run(pane_tok, o.argv, o.effective_cwd or "~"), placeholders=ph)
+                    if be.name == "cmux":
+                        mux_step(plan, fleet, f"{p}run.{o.slot_id[-6:]}.enter", o, session, "press enter",
+                                 *be.send_enter(pane_tok), placeholders=ph, unverified=True)
                 else:
                     plan.notes.append(f"{o.human_id}: {o.role} not in allowlist; pane restored, command not relaunched")
         # 9. bookkeeping

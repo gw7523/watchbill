@@ -16,7 +16,7 @@ import shlex
 from typing import Sequence
 
 from ..hosts import Host
-from .base import CmdResult, NotImplementedInThisPass, herdr_session_args
+from .base import CmdResult, NotImplementedInThisPass, backend_for, mux_prefix
 
 
 def ssh_prefix(host: Host) -> list[str]:
@@ -29,16 +29,21 @@ class SshCliSession:
     def __init__(self, host: Host, session: str):
         self.host = host
         self.session = session
+        self.backend = backend_for(host)
 
-    def herdr_argv(self, *args: str) -> list[str]:
-        remote = [*herdr_session_args(self.host, self.session), *args]
+    def mux_argv(self, *args: str) -> list[str]:
+        remote = [*mux_prefix(self.host, self.session), *args]
         return [*ssh_prefix(self.host), shlex.join(remote)]
+
+    herdr_argv = mux_argv
 
     def shell_argv(self, argv: Sequence[str]) -> list[str]:
         return [*ssh_prefix(self.host), shlex.join(list(argv))]
 
-    def herdr(self, *args: str, timeout: float = 30.0) -> CmdResult:
-        raise NotImplementedInThisPass(f"ssh_cli herdr {' '.join(args)} on {self.host.name}")
+    def mux(self, *args: str, timeout: float = 30.0) -> CmdResult:
+        raise NotImplementedInThisPass(f"ssh_cli {self.host.mux} {' '.join(args)} on {self.host.name}")
+
+    herdr = mux
 
     def shell(self, argv: Sequence[str], timeout: float = 60.0) -> CmdResult:
         raise NotImplementedInThisPass(f"ssh_cli shell on {self.host.name}")

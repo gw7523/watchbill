@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import TYPE_CHECKING, Protocol, Sequence
+
+if TYPE_CHECKING:
+    from ..mux.base import MuxBackend
 
 from ..exitcodes import TransportError  # noqa: F401  (re-exported for transports)
 from ..hosts import Host
@@ -51,15 +54,31 @@ class CmdResult:
 class HostSession(Protocol):
     host: Host
     session: str
+    backend: "MuxBackend"
 
-    def herdr_argv(self, *args: str) -> list[str]: ...
+    def mux_argv(self, *args: str) -> list[str]: ...
+    def herdr_argv(self, *args: str) -> list[str]: ...        # alias of mux_argv (herdr mux)
     def shell_argv(self, argv: Sequence[str]) -> list[str]: ...
+    def mux(self, *args: str, timeout: float = 30.0) -> CmdResult: ...
     def herdr(self, *args: str, timeout: float = 30.0) -> CmdResult: ...
     def shell(self, argv: Sequence[str], timeout: float = 60.0) -> CmdResult: ...
     def reachable(self) -> bool: ...
 
 
+def backend_for(host: Host) -> "MuxBackend":
+    from .. import mux as _mux
+    return _mux.get(host.mux, **host.mux_options)
+
+
+def mux_prefix(host: Host, session: str) -> list[str]:
+    """CLI prefix of the host's mux: ``herdr --session S`` (named explicitly
+    even for default, so a remote HERDR_SESSION cannot redirect us),
+    ``tmux -L S``, or ``cmux [--socket P]``."""
+    prefix = backend_for(host).cli_prefix(session)
+    if host.mux == "herdr":
+        prefix[0] = host.herdr_bin
+    return prefix
+
+
 def herdr_session_args(host: Host, session: str) -> list[str]:
-    """``herdr --session <S>`` prefix. The default session is still named
-    explicitly so a remote ``HERDR_SESSION`` env cannot redirect us."""
-    return [host.herdr_bin, "--session", session]
+    return mux_prefix(host, session)

@@ -28,7 +28,7 @@ from .doctor import Probe
 from .exitcodes import RefusedPlan
 from .hosts import Fleet
 from .plan import Plan, Refusal, Step, StepKind
-from .plan_secure import herdr_step, park_steps
+from .plan_secure import backend_of, mux_step, park_steps
 from .plan_set import attach_steps, set_steps, start_steps
 from .roster import Roster
 
@@ -78,6 +78,9 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
     if live:
         for hn in active:
             p = opts.probes.get(hn)
+            be = backend_of(fleet, hn)
+            if be.caps.live_handoff == "never":
+                raise RefusedPlan(f"{hn}: {be.name} has no live handoff; run --mode cold instead")
             if p is None or not p.handoff_supported:
                 why = "no probe" if p is None else f"flavor={p.flavor} live_handoff_flag={p.live_handoff_flag}"
                 raise RefusedPlan(f"{hn}: live handoff unsupported ({why}); run --mode cold instead")
@@ -126,19 +129,21 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         parked = park_steps(plan, fleet, pool, force=opts.force, self_pane=opts.self_pane,
                             cockpit_host=opts.cockpit_host, prefix=f"{tag}park")
         sessions = sorted({o.session for o in roster.on_host(hn)} or set(host.sessions))
+        be = backend_of(fleet, hn)
         stop = blast.needs_session_stop and not live
-        # 3. copy session.json aside
-        for s in sessions:
-            src = session_json_path(s)
-            argv = ["sh", "-c", f"cp -p {src} {src}.watchbill-{opts.run_id} 2>/dev/null || true"]
-            plan.add(Step(id=f"{tag}keep.{s}", kind=StepKind.SHELL, host=hn, session=s, argv=tuple(argv), raw=tuple(argv),
-                          description="#3415: copy session.json aside before any stop", mutating=True, via="shell"))
+        # 3. copy session.json aside (herdr persists; tmux does not, cmux saves on quit)
+        if be.name == "herdr":
+            for s in sessions:
+                src = session_json_path(s)
+                argv = ["sh", "-c", f"cp -p {src} {src}.watchbill-{opts.run_id} 2>/dev/null || true"]
+                plan.add(Step(id=f"{tag}keep.{s}", kind=StepKind.SHELL, host=hn, session=s, argv=tuple(argv), raw=tuple(argv),
+                              description="#3415: copy session.json aside before any stop", mutating=True, via="shell"))
         # 4/5. action commands that need no running server go first, then the
         #      declared session stop, then the rest (a stopped socket answers nothing)
         def emit(cmd_list, offset):
             for i, c in enumerate(cmd_list, offset):
-                if c.via == "herdr":
-                    herdr_step(plan, fleet, f"{tag}act{i}", hn, sessions[0], c.description, *c.argv[1:], unverified=c.unverified)
+                if c.via in ("herdr", "mux"):
+                    mux_step(plan, fleet, f"{tag}act{i}", hn, sessions[0], c.description, *c.argv[1:], unverified=c.unverified)
                 else:
                     plan.add(Step(id=f"{tag}act{i}", kind=StepKind.SHELL, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
                                   description=c.description, mutating=c.mutating, unverified=c.unverified, via="shell"))
@@ -147,13 +152,18 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         emit(early, 1)
         if stop:
             for i, s in enumerate(sessions, 1):
-                herdr_step(plan, fleet, f"{tag}stop{i}", hn, s, f"stop session {s} (blast radius; not server stop)",
-                           "session", "stop", s)
+                stop_argv = be.session_stop(s)
+                if stop_argv is None:
+                    plan.add(Step(id=f"{tag}stop{i}", kind=StepKind.MANUAL, host=hn, session=s, mux=be.name, mutating=True,
+                                  description=f"MANUAL: quit {be.name} on {hn} (it saves its session on quit); then continue"))
+                else:
+                    note = "not server stop" if be.name == "herdr" else f"{be.name}: the server is the session"
+                    mux_step(plan, fleet, f"{tag}stop{i}", hn, s, f"stop session {s} (blast radius; {note})", *stop_argv)
         emit(late, len(early) + 1)
         # 6. verify
         for i, c in enumerate(verify.commands, 1):
-            if c.via == "herdr":
-                herdr_step(plan, fleet, f"{tag}verify{i}", hn, sessions[0], verify.description, *c.argv[1:], kind=StepKind.WAIT)
+            if c.via in ("herdr", "mux"):
+                mux_step(plan, fleet, f"{tag}verify{i}", hn, sessions[0], verify.description, *c.argv[1:], kind=StepKind.WAIT)
             else:
                 plan.add(Step(id=f"{tag}verify{i}", kind=StepKind.WAIT, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
                               description=verify.description, via="shell"))
@@ -163,7 +173,9 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         # 7. start + attach if the session was stopped (even with nothing to set)
         if stop:
             for i, s in enumerate(sessions, 1):
-                start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.")
+                shp = roster.shape_for(hn, s)
+                fw = shp.workspaces[0] if shp and shp.workspaces else {}
+                start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.", first_label=fw.get("label", "watchbill"), cwd=fw.get("cwd") or "~")
                 attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
         elif blast.needs_client_attach and parked:
             for i, s in enumerate(sessions, 1):

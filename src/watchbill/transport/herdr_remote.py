@@ -16,6 +16,14 @@ class HerdrRemoteSession:
     def __init__(self, host: Host, session: str):
         self.host = host
         self.session = session
+        from .base import backend_for
+        self.backend = backend_for(host)
+
+    def mux_argv(self, *args: str) -> list[str]:
+        return self.herdr_argv(*args)
+
+    def mux(self, *args: str, timeout: float = 30.0) -> CmdResult:
+        return self.herdr(*args, timeout=timeout)
 
     def herdr_argv(self, *args: str) -> list[str]:
         if not self.host.target:

@@ -26,6 +26,17 @@ class InstallPlugin(BaseAction):
                            needs_session_stop=hooks, needs_client_attach=hooks)
 
     def commands(self, host: Host, probe: Probe) -> list[RemoteCmd]:
+        if host.mux == "cmux":
+            raise ActionUnavailable(f"{host.name}: cmux documents no plugin system")
+        if host.mux == "tmux":
+            # TPM is the de-facto manager; live (source-file), nothing parked. Refuses if TPM is absent.
+            spec = self.options.get("plugin")
+            tpm = "$HOME/.tmux/plugins/tpm/bin/install_plugins"
+            cmds = [RemoteCmd(("sh", "-c", f'test -x "{tpm}" || {{ echo "TPM not installed" >&2; exit 3; }}'),
+                              "check TPM is installed", mutating=False),
+                    RemoteCmd(("sh", "-c", f'"{tpm}"'), f"TPM install plugins ({spec or 'from ~/.tmux.conf'})", unverified=True),
+                    RemoteCmd(("tmux", "source-file", "~/.tmux.conf"), "tmux source-file (live reload)", via="mux")]
+            return cmds
         spec = self.options.get("plugin")
         if not spec:
             raise ActionUnavailable("install-plugin needs --plugin owner/repo[/subdir]")

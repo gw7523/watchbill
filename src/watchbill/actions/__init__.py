@@ -8,13 +8,16 @@ from .base import Action, ActionContext, ActionUnavailable, BaseAction, BlastRad
 from .custom import Custom
 from .install_plugin import InstallPlugin
 from .omarchy_update import OmarchyUpdate
+from .reload_config import ReloadConfig
 from .restart_harness import RestartHarness
 from .restart_herdr import RestartHerdr
 from .upgrade_agents import UpgradeAgents
-from .upgrade_herdr import UpgradeHerdr
+from .upgrade_herdr import UpgradeHerdr, UpgradeMux
 
 REGISTRY: dict[str, type[BaseAction]] = {
-    UpgradeHerdr.name: UpgradeHerdr,
+    UpgradeMux.name: UpgradeMux,
+    "upgrade-herdr": UpgradeHerdr,          # contract name; same action
+    ReloadConfig.name: ReloadConfig,
     RestartHerdr.name: RestartHerdr,
     OmarchyUpdate.name: OmarchyUpdate,
     UpgradeAgents.name: UpgradeAgents,
@@ -34,6 +37,20 @@ def get(name: str, ctx: ActionContext | None = None) -> BaseAction:
 
 def blast_radius_table(ctx: ActionContext | None = None) -> dict[str, BlastRadius]:
     return {name: cls(ctx).blast_radius() for name, cls in REGISTRY.items()}
+
+
+def per_mux_matrix() -> dict[str, dict[str, str]]:
+    """Which actions each mux supports; docs + tests read this."""
+    return {
+        "upgrade-mux": {"herdr": "cold (flavor)", "tmux": "cold (brew/pacman)", "cmux": "cask + MANUAL relaunch"},
+        "restart-herdr": {"herdr": "cold", "tmux": "cold (kill-server)", "cmux": "MANUAL quit/relaunch"},
+        "restart-harness": {"herdr": "cold", "tmux": "cold (kill-server)", "cmux": "MANUAL quit/relaunch"},
+        "reload-config": {"herdr": "live", "tmux": "live (source-file)", "cmux": "refused"},
+        "install-plugin": {"herdr": "live, bounce if startup hooks", "tmux": "live (TPM + source-file)", "cmux": "refused"},
+        "upgrade-agents": {"herdr": "no stop", "tmux": "no stop", "cmux": "no stop"},
+        "omarchy-update": {"herdr": "pacman hosts", "tmux": "pacman hosts", "cmux": "refused"},
+        "custom": {"herdr": "declared", "tmux": "declared", "cmux": "declared"},
+    }
 
 
 __all__ = ["Action", "ActionContext", "ActionUnavailable", "BaseAction", "BlastRadius", "RemoteCmd", "Verify",

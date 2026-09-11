@@ -93,12 +93,14 @@ def assess(host: str, status: dict | None, herdr_path: str | None, *, pacman_own
 
 
 def check(hs: HostSession, *, kinds: tuple[str, ...] = ()) -> Probe:
-    """Live probe over a transport. Read-only commands only:
-    ``herdr status server --json``, ``command -v herdr``, ``pacman -Qo``,
-    ``<agent> --version``. Raises NotImplementedInThisPass until MVP."""
-    st = hs.herdr("status", "server", "--json")
-    path = hs.shell(["sh", "-c", "command -v herdr"])
-    owner = hs.shell(["sh", "-c", "pacman -Qo \"$(command -v herdr)\" >/dev/null 2>&1 && echo yes || echo no"])
+    """Live probe over a transport. Read-only commands only: the mux's status
+    verb, ``command -v <mux>``, ``pacman -Qo``, ``<agent> --version``.
+    Raises NotImplementedInThisPass until MVP."""
+    be = hs.backend
+    mux_bin = be.name
+    st = hs.mux(*be.status_argv())
+    path = hs.shell(["sh", "-c", f"command -v {mux_bin}"])
+    owner = hs.shell(["sh", "-c", f"pacman -Qo \"$(command -v {mux_bin})\" >/dev/null 2>&1 && echo yes || echo no"])
     versions: dict[str, str] = {}
     apaths: dict[str, str] = {}
     for kind in kinds:
@@ -110,9 +112,15 @@ def check(hs: HostSession, *, kinds: tuple[str, ...] = ()) -> Probe:
             versions[kind] = v.stdout.strip()
         if p.ok and p.stdout.strip():
             apaths[kind] = p.stdout.strip()
-    return assess(hs.host.name, st.json() if st.ok else None, path.stdout.strip() or None,
-                  pacman_owned=owner.stdout.strip() == "yes", agent_versions=versions, agent_paths=apaths,
-                  error=None if st.ok else st.stderr.strip() or "status failed")
+    status = be.parse_status(st.stdout, st.ok)
+    raw = status.raw if be.name == "herdr" else {"running": status.running, "version": status.version, "socket": status.socket,
+                                                 "capabilities": {"live_handoff": False}}
+    probe = assess(hs.host.name, raw if st.ok else None, path.stdout.strip() or None,
+                   pacman_owned=owner.stdout.strip() == "yes", agent_versions=versions, agent_paths=apaths,
+                   error=None if st.ok else st.stderr.strip() or "status failed")
+    if be.caps.live_handoff == "never":
+        probe = Probe(**{**probe.__dict__, "handoff_supported": False})
+    return probe
 
 
 def expect_version(probe: Probe, expected: str | None) -> str | None:

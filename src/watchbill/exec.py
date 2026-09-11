@@ -46,7 +46,7 @@ class ExecResult:
 
 class Executor:
     def __init__(self, fleet: Fleet, journal: Journal, *, run_id: str, force_server_stop: bool = False,
-                 session_factory=make_session, local_runner=subprocess.run, out=print):
+                 session_factory=make_session, local_runner=subprocess.run, out=print, confirm=None):
         self.fleet = fleet
         self.journal = journal
         self.run_id = run_id
@@ -54,6 +54,9 @@ class Executor:
         self.session_factory = session_factory
         self.local_runner = local_runner
         self.out = out
+        # MANUAL steps: the operator does something by hand (quit/relaunch cmux). `confirm(text)`
+        # returns True when they say so; default reads a line from stdin, non-interactive → False.
+        self.confirm = confirm or _stdin_confirm
         self._sessions: dict[tuple[str, str], HostSession] = {}
 
     # -- plumbing ------------------------------------------------------
@@ -72,43 +75,51 @@ class Executor:
             return pane_map[key]
         return tuple(_PLACEHOLDER.sub(sub, t) for t in raw)
 
-    def _record_created(self, step: Step, res: CmdResult, pane_map: dict[str, str]) -> None:
+    def _record_created(self, step: Step, res: CmdResult, pane_map: dict[str, str], hs: HostSession) -> None:
         if not step.creates or not res.ok:
             return
-        try:
-            r = res.json()
-        except ValueError:
-            return
-        pid = (r.get("root_pane") or {}).get("pane_id") or (r.get("pane") or {}).get("pane_id")
-        if pid:
-            pane_map[step.creates] = pid
-        wsid = (r.get("workspace") or {}).get("workspace_id")
-        if wsid:
-            pane_map[f"ws:{step.creates}"] = wsid
+        ids = hs.backend.created_ids(res.stdout)
+        if ids.get("pane_id"):
+            pane_map[step.creates] = ids["pane_id"]
+            if step.creates.startswith("boot:"):
+                pane_map.setdefault(step.creates, ids["pane_id"])
+        if ids.get("workspace_id"):
+            pane_map[f"ws:{step.creates}"] = ids["workspace_id"]
 
     def _check_precondition(self, step: Step, hs: HostSession, raw: tuple[str, ...]) -> str | None:
         """Pitfall 12: never prompt a blocked agent. Herdr rejects it too, but
         we ask first so the plan stops cleanly instead of on an error."""
         if step.precondition != "agent_status != blocked":
             return None
-        target = raw[2] if len(raw) > 2 else None
-        res = hs.herdr("agent", "get", target) if target else None
-        if res is None or not res.ok:
+        be = hs.backend
+        target = _prompt_target(be.name, raw)
+        get = be.agent_get(target) if target else None
+        if get is None:
+            return None if be.caps.agent_status == "none" else f"cannot read agent {target} before prompting"
+        res = hs.mux(*get)
+        if not res.ok:
             return f"cannot read agent {target} before prompting"
-        try:
-            status = (res.json().get("agent") or res.json()).get("agent_status")
-        except ValueError:
-            status = None
-        if status == "blocked":
+        if be.name == "herdr":
+            try:
+                status = (res.json().get("agent") or res.json()).get("agent_status")
+            except ValueError:
+                status = None
+            blocked = status == "blocked"
+        else:
+            from .detect import looks_blocked   # tmux: agent_get returns the screen
+            blocked = looks_blocked(None, res.stdout)
+        if blocked:
             return f"agent {target} is blocked on an approval/question dialog; prompt refused"
         return None
 
     def _post_prompt_check(self, step: Step, hs: HostSession) -> str | None:
         """Pitfall 13: agent must still be present after a prompt."""
-        target = step.raw[2] if len(step.raw) > 2 else None
-        if not target:
+        be = hs.backend
+        target = _prompt_target(be.name, step.raw)
+        get = be.agent_get(target) if target else None
+        if not target or get is None:
             return None
-        res = hs.herdr("agent", "get", target)
+        res = hs.mux(*get)
         if not res.ok:
             return f"agent {target} vanished after prompt (unexpected exit, see #3632)"
         return None
@@ -164,6 +175,9 @@ class Executor:
     def _run_step(self, step: Step, plan: Plan, result: ExecResult) -> str | None:
         if step.kind in (StepKind.NOTE,):
             return None
+        if step.kind is StepKind.MANUAL:
+            self.out(f"MANUAL {step.host}: {step.description}")
+            return None if self.confirm(step.description) else "operator did not confirm the manual step"
         if step.kind in (StepKind.SNAP, StepKind.GUARD):
             # Performed by cli._run_plan around exec (pre-* roster written and the
             # occupant guard evaluated before the first mutating step; post-set
@@ -178,18 +192,18 @@ class Executor:
         raw = self._resolve(step.raw, result.pane_map) if step.placeholders else step.raw
         via = step.via
         if via == "none":   # hand-built steps: infer from kind
-            via = {StepKind.HERDR: "herdr", StepKind.WAIT: "herdr", StepKind.SHELL: "shell", StepKind.LOCAL: "local"}.get(step.kind, "none")
-        if via == "herdr":
+            via = {StepKind.HERDR: "mux", StepKind.WAIT: "mux", StepKind.SHELL: "shell", StepKind.LOCAL: "local"}.get(step.kind, "none")
+        if via in ("herdr", "mux"):
             hs = self._hs(step.host, step.session)
             if step.precondition:
                 err = self._check_precondition(step, hs, raw)
                 if err:
                     return err
-            res = hs.herdr(*raw)
-            self._record_created(step, res, result.pane_map)
+            res = hs.mux(*raw)
+            self._record_created(step, res, result.pane_map, hs)
             if not res.ok:
                 return res.stderr.strip() or res.stdout.strip() or f"exit {res.returncode}"
-            if step.verb == ("agent", "prompt"):
+            if _is_prompt(hs.backend.name, step):
                 return self._post_prompt_check(step, hs)
             return None
         if via == "shell":
@@ -200,6 +214,33 @@ class Executor:
             cp = self.local_runner(list(raw), capture_output=True, text=True)
             return None if cp.returncode == 0 else (cp.stderr.strip() or f"exit {cp.returncode}")
         return f"unhandled step kind {step.kind}"
+
+
+def _stdin_confirm(text: str) -> bool:
+    import sys
+    if not sys.stdin.isatty():
+        return False
+    try:
+        return input("  done? [y/N] ").strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
+
+
+def _prompt_target(mux_name: str, raw: tuple[str, ...]) -> str | None:
+    """The agent target inside a prompt/send argv: herdr `agent prompt <T>`,
+    tmux `send-keys -t <T>`, cmux `send --surface <T>`."""
+    r = list(raw)
+    if mux_name == "herdr":
+        return r[2] if len(r) > 2 else None
+    for flag in ("-t", "--surface"):
+        if flag in r and r.index(flag) + 1 < len(r):
+            return r[r.index(flag) + 1]
+    return None
+
+
+def _is_prompt(mux_name: str, step: Step) -> bool:
+    return step.verb == ("agent", "prompt") if mux_name == "herdr" else (
+        step.precondition == "agent_status != blocked" and step.raw[:1] in (("send-keys",), ("send",)))
 
 
 def run(plan: Plan, fleet: Fleet, journal: Journal, *, run_id: str, force_server_stop: bool = False, **kw) -> ExecResult:

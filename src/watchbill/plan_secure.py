@@ -23,8 +23,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import mux as _mux
+from .detect import status_is_parkable
 from .hosts import Fleet, Host
-from .plan import Plan, Refusal, Step, StepKind, is_mutating
+from .plan import Plan, Refusal, Step, StepKind
 from .roster import Occupant, Roster
 from .transport import make_session
 
@@ -52,24 +54,48 @@ class SecureOptions:
     cockpit_host: str | None = None
 
 
-def _hs_argv(fleet: Fleet, host_name: str, session: str, *args: str) -> tuple[list[str], tuple[str, ...]]:
-    host = fleet.host(host_name) or Host(name=host_name, transport="local", cockpit=False)
-    hs = make_session(host, session)
-    return hs.herdr_argv(*args), tuple(args)
+def host_of(fleet: Fleet, host_name: str) -> Host:
+    return fleet.host(host_name) or Host(name=host_name, transport="local", cockpit=False)
 
 
-def herdr_step(plan: Plan, fleet: Fleet, sid: str, occ_or_host, session: str, description: str, *args: str,
-               kind: StepKind = StepKind.HERDR, slot_id: str | None = None, human_id: str | None = None,
-               precondition: str | None = None, placeholders: bool = False, creates: str | None = None,
-               unverified: bool = False) -> Step:
+def backend_of(fleet: Fleet, host_name: str):
+    h = host_of(fleet, host_name)
+    return _mux.get(h.mux, **h.mux_options)
+
+
+def mux_step(plan: Plan, fleet: Fleet, sid: str, occ_or_host, session: str, description: str, *args: str,
+             kind: StepKind = StepKind.HERDR, slot_id: str | None = None, human_id: str | None = None,
+             precondition: str | None = None, placeholders: bool = False, creates: str | None = None,
+             unverified: bool = False) -> Step:
+    """Append one step whose ``raw`` is a mux CLI argv (after the backend
+    prefix). Backends may hand back two markers instead of a real argv:
+    ``__poll__`` (tmux: a remote shell wait loop) and ``__manual__``
+    (cmux: the operator does it). Both are turned into the right Step kind
+    here so planners never special-case a mux."""
     host_name = occ_or_host.host if isinstance(occ_or_host, Occupant) else occ_or_host
     if isinstance(occ_or_host, Occupant):
         slot_id, human_id = occ_or_host.slot_id, occ_or_host.human_id
-    argv, raw = _hs_argv(fleet, host_name, session, *args)
+    host = host_of(fleet, host_name)
+    be = backend_of(fleet, host_name)
+    hs = make_session(host, session)
+    raw = tuple(args)
+    if raw[:1] == ("__manual__",):
+        return plan.add(Step(id=sid, kind=StepKind.MANUAL, host=host_name, session=session, mux=host.mux,
+                             description=f"MANUAL: {raw[1]}", mutating=True, slot_id=slot_id, human_id=human_id))
+    if raw[:1] == ("__poll__",):
+        shell = tuple(be.resolve_poll(session, raw))   # type: ignore[attr-defined]
+        return plan.add(Step(id=sid, kind=StepKind.WAIT, host=host_name, session=session, mux=host.mux,
+                             description=description, argv=tuple(hs.shell_argv(shell)), raw=shell, mutating=False,
+                             slot_id=slot_id, human_id=human_id, via="shell", unverified=unverified))
+    argv = hs.mux_argv(*raw)
     step = Step(id=sid, kind=kind, host=host_name, session=session, description=description, argv=tuple(argv),
-                mutating=is_mutating(("herdr", *raw)), slot_id=slot_id, human_id=human_id, precondition=precondition,
-                placeholders=placeholders, raw=raw, creates=creates, unverified=unverified, via="herdr")
+                mutating=be.is_mutating(raw), slot_id=slot_id, human_id=human_id, precondition=precondition,
+                placeholders=placeholders, raw=raw, creates=creates, via="mux", mux=host.mux,
+                unverified=unverified or be.caps.docs_only)   # docs-only backend: every verb is UNVERIFIED-LIVE
     return plan.add(step)
+
+
+herdr_step = mux_step   # name kept for the first-pass call sites and tests
 
 
 def select(roster: Roster, opts: SecureOptions) -> tuple[list[Occupant], list[Refusal], list[str]]:
@@ -118,28 +144,31 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
             continue
         if o.role in ("shell", "editor"):
             continue
+        be = backend_of(fleet, o.host)
         if o.role == "agent":
             if o.agent_status == "blocked":
                 plan.refusals.append(Refusal("agent is blocked on an approval/question dialog; answer it by hand first",
                                              host=o.host, human_id=o.human_id, slot_id=o.slot_id))
                 continue
-            if o.agent_status == "working" and not force:
-                plan.refusals.append(Refusal("agent is working", host=o.host, human_id=o.human_id,
-                                             slot_id=o.slot_id, override="--force"))
+            if not status_is_parkable(o.agent_status) and not force:
+                why = "agent is working" if o.agent_status == "working" else \
+                    f"agent status is {o.agent_status or 'unknown'} ({be.name} cannot prove it is at its prompt)"
+                plan.refusals.append(Refusal(why, host=o.host, human_id=o.human_id, slot_id=o.slot_id, override="--force"))
                 continue
             text, verified = PARK_INPUT.get(o.kind or "", ("/exit", False))
             n += 1
-            herdr_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"type {text} into {o.kind}",
-                       "pane", "send-text", pid, text, unverified=not verified)
-            herdr_step(plan, fleet, f"{prefix}{n}b", o, o.session, "press enter", "pane", "send-keys", pid, "enter",
-                       unverified=True)   # key name: only `esc` is documented
-            herdr_step(plan, fleet, f"{prefix}{n}c", o, o.session, "wait for the agent to exit (pane back at shell)",
-                       "agent", "wait", pid, "--until", "unknown", "--timeout", "20000", kind=StepKind.WAIT)
+            heur = be.caps.agent_status != "native"
+            mux_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"type {text} into {o.kind}",
+                     *be.send_text(pid, text), unverified=not verified)
+            mux_step(plan, fleet, f"{prefix}{n}b", o, o.session, "press enter", *be.send_enter(pid),
+                     unverified=(be.name == "herdr"))   # herdr key name: only `esc` is documented
+            mux_step(plan, fleet, f"{prefix}{n}c", o, o.session, "wait for the agent to exit (pane back at shell)",
+                     *be.agent_wait_exit(pid, o.kind, 20000), kind=StepKind.WAIT, unverified=heur)
             parked.append(o)
         elif o.role in ("watcher", "poller", "server"):
             n += 1
-            herdr_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"interrupt {o.role} ({o.cmdline[:40]})",
-                       "pane", "send-keys", pid, INTERRUPT_KEY, unverified=True)
+            mux_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"interrupt {o.role} ({o.cmdline[:40]})",
+                     *be.interrupt(pid), unverified=(be.name != "tmux"))   # tmux C-c is verified
             parked.append(o)
     return parked
 
@@ -163,10 +192,17 @@ def plan_secure(roster: Roster, fleet: Fleet, opts: SecureOptions) -> Plan:
     if opts.mode == "fold":
         wss = {(o.host, o.session, o.live_ids.workspace_id, o.workspace_label) for o in parked}
         for i, (h, s, wsid, label) in enumerate(sorted(wss, key=lambda x: (x[0], x[1], x[2] or "")), 1):
-            herdr_step(plan, fleet, f"fold{i}", h, s, f"close workspace {label}", "workspace", "close", wsid or "?")
+            be = backend_of(fleet, h)
+            mux_step(plan, fleet, f"fold{i}", h, s, f"close workspace {label}", *be.workspace_close(wsid or label))
     elif opts.mode in ("dismiss", "host"):
         for i, ((h, s), _o) in enumerate(sorted(touched.items()), 1):
-            herdr_step(plan, fleet, f"stop{i}", h, s, f"stop session {s} (not server stop)", "session", "stop", s)
+            be = backend_of(fleet, h)
+            stop = be.session_stop(s)
+            if stop is None:
+                plan.refusals.append(Refusal(f"{be.name} has no server to stop; use `secure fold` (close workspaces)", host=h))
+                continue
+            note = "(not server stop)" if be.name == "herdr" else "(tmux: the server IS the session; needs --force-server-stop)"
+            mux_step(plan, fleet, f"stop{i}", h, s, f"stop session {s} {note}", *stop)
     if not occupants:
         plan.notes.append("nothing selected")
     return plan
