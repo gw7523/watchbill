@@ -109,7 +109,7 @@ Planners consult `Capabilities` and turn a missing capability into a
 
 | action | herdr | tmux | cmux |
 |---|---|---|---|
-| `upgrade-mux` (alias `upgrade-herdr`) | as before | cold: park, kill-server, pacman/brew upgrade, new-session, set | park, brew cask upgrade, **manual relaunch**, `restore-session`, set |
+| `upgrade-mux` (alias `upgrade-herdr`) | as before | cold: park, kill-server, pacman/brew upgrade, new-session, set | park, **manual quit**, brew cask upgrade, **manual relaunch**, `restore-session`, set |
 | `restart-harness` | session stop/start | kill-server / new-session | manual quit+relaunch, `restore-session` |
 | `reload-config` *(new)* | `server reload-config`, live | `source-file`, live | refused |
 | `install-plugin` | as before | TPM `install_plugins` + `source-file`, live | refused |

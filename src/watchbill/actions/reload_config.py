@@ -25,7 +25,7 @@ class ReloadConfig(BaseAction):
         argv = be.reload_config()
         if argv is None:
             raise ActionUnavailable(f"{host.name}: {be.name} documents no config reload")
-        return [RemoteCmd((be.name, *argv), f"{be.name} config reload (live, PTYs kept)", via="mux")]
+        return [RemoteCmd((be.name, *argv), f"{be.name} config reload (live, PTYs kept)", via="mux")]  # noqa: E501
 
     def verify(self, host: Host) -> Verify:
         be = _mux.get(host.mux, **host.mux_options)

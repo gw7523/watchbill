@@ -1,6 +1,6 @@
 ---
 name: watchbill
-description: Drive the Watchbill cockpit CLI to catalog (roll/snap), stand down (secure), restore (set), and run maintenance windows (relieve) over a Herdr 0.8.2 fleet. Use when the user asks what agents are running where, to park or restore the fleet, or to upgrade herdr / agent CLIs / plugins without losing the map. Requires the `watchbill` CLI; never calls herdr directly for fleet operations.
+description: Drive the Watchbill cockpit CLI to catalog (roll/snap), stand down (secure), restore (set), and run maintenance windows (relieve) over a fleet of coding agents running in Herdr, tmux, or cmux. Use when the user asks what agents are running where, to park or restore the fleet, or to upgrade the multiplexer / agent CLIs / plugins without losing the map. Requires the `watchbill` CLI; never calls herdr or tmux directly for fleet operations.
 ---
 
 # Watchbill for a chief-of-staff agent
@@ -26,12 +26,30 @@ do not stop Herdr sessions, close panes, or type into other agents with raw
 | `--force` | "force" — parks agents that are still working |
 | `--include-local` | "include local" / "the cockpit too" — touches the machine Watchbill runs on |
 | `--allow-reboot` | "reboot" — lets an action reboot a worker host (never the cockpit) |
-| `--force-server-stop` | "server stop" — `herdr server stop` instead of `session stop` |
+| `--force-server-stop` | "server stop" — an *unplanned* whole-server stop: `herdr server stop`, or a `tmux kill-server` that is not the declared stop of a maintenance window. A cold tmux window's own `kill-server` is planned and needs no flag. |
 | `--mode live` | "live handoff" — and only if `watchbill doctor` says `handoff=supported` |
 | `snap --force` | "force the roster" — overrides the occupant-count guard |
 
 If the human's request would need one of these and they did not say the
 word, ask, quoting the flag and what it does.
+
+## One mux per host
+
+`hosts.toml` gives each host a `mux`: **herdr** (knows its agents natively),
+**tmux** (Watchbill derives role from argv and status from quiet time plus
+approval-prompt patterns — an `idle` there is a *guess*, flagged in the
+roster as `status: heuristic`), or **cmux** (macOS; only what the published
+CLI documents, so quitting and relaunching the app are `MANUAL` steps the
+human performs while Watchbill waits).
+
+Tell the human when these bite:
+
+- tmux and cmux have no live handoff, so `relieve --mode live` is refused.
+- tmux agents resume with their cwd-scoped `--continue`; when two agents of
+  one kind share a directory Watchbill refuses to guess and starts fresh.
+- `reload-config` is live on herdr and tmux, refused on cmux.
+- A tmux occupant whose status is `unknown` needs `--force` to park, exactly
+  like a `working` one.
 
 ## Verbs
 

@@ -101,6 +101,27 @@ def test_tmux_created_ids_and_layout_argv():
     assert not be.is_mutating(["list-panes", "-a"]) and be.is_mutating(["send-keys", "-t", "%0", "Enter"])
 
 
+def test_herdr_verbs_match_what_was_probed_on_0_8_2():
+    """Regression pins for the four bugs the live probe caught (see
+    docs/herdr-0.8.2-facts.md, "Probed 2026-09-11")."""
+    be = M.get("herdr")
+    # 1. `ctrl-c` is rejected with invalid_key; `C-c` is the accepted name
+    assert be.interrupt("w1:p1")[-1] == "C-c"
+    # 2. `agent wait` is level-triggered, so waiting only for `idle` hangs on a
+    #    `done` agent; every settled state is matched and blocked is refused later
+    idle = be.agent_wait_idle("a", 90000)
+    assert [idle[i + 1] for i, t in enumerate(idle) if t == "--until"] == ["idle", "done", "blocked"]
+    # 3. an exited agent is *absent*, not `unknown`: the oracle polls `agent get`
+    assert be.agent_wait_exit("w1:p1", "claude", 20000)[:1] == [M.base.POLL]
+    loop = be.resolve_poll("default", be.agent_wait_exit("w1:p1", "claude", 20000))
+    assert loop[:2] == ["sh", "-c"] and "agent get w1:p1" in loop[2] and "|| exit 0" in loop[2]
+    assert "--until unknown" not in " ".join(be.agent_wait_exit("w1:p1", "claude", 1))
+    # 4. `--source recent` is empty on a settled pane; excerpts use the viewport
+    assert "visible" in be.excerpt_argv("w1:p1", 40)
+    # headless start is verified, so the backend offers it
+    assert be.session_start("s", "l", "~") == ["server"]
+
+
 # -- classification + heuristics --------------------------------------------
 
 def test_tmux_roster_roles_status_and_continue_resume(tmux_roster):
@@ -165,10 +186,23 @@ def test_tmux_unknown_status_needs_force(tmux_roster, mixed_fleet):
     assert p.refused and p.refusals[0].override == "--force" and "cannot prove" in p.refusals[0].reason
 
 
-def test_tmux_dismiss_is_kill_server_and_guarded(tmux_roster, mixed_fleet):
+def test_tmux_dismiss_is_a_planned_kill_server(tmux_roster, mixed_fleet):
+    """On tmux the session IS the server, so the declared stop is `kill-server`.
+    That planned stop must pass the never-emit gate — otherwise every cold tmux
+    window would need --force-server-stop, which the skill forbids without the
+    human saying it. An *unplanned* kill-server is still gated."""
     p = plan_secure(tmux_roster, mixed_fleet, opts(mode="dismiss", targets=["beta"], host="mac"))
     stop = next(s for s in p.steps if s.raw == ("kill-server",))
-    assert stop.mutating and check_verbs_allowed(p.steps) and not check_verbs_allowed(p.steps, force_server_stop=True)
+    assert stop.mutating and stop.planned_stop
+    assert check_verbs_allowed(p.steps) == []
+    from dataclasses import replace
+    rogue = replace(stop, id="rogue", planned_stop=False)
+    assert check_verbs_allowed([rogue]) and not check_verbs_allowed([rogue], force_server_stop=True)
+    # herdr `server stop` stays gated no matter what
+    from watchbill.plan import Step, StepKind
+    hs = Step(id="h", kind=StepKind.HERDR, host="rig2", raw=("server", "stop"), via="mux", mux="herdr",
+              description="", mutating=True, planned_stop=True)
+    assert check_verbs_allowed([hs])
 
 
 def test_tmux_set_no_viewport_layout_reapplied(tmux_roster, mixed_fleet, probes):
@@ -178,8 +212,14 @@ def test_tmux_set_no_viewport_layout_reapplied(tmux_roster, mixed_fleet, probes)
     ids = [s.id for s in p.steps]
     assert not any("att" in i for i in ids)                                  # tmux needs no #2064 viewport
     start = next(s for s in p.steps if s.id == "set1.start")
-    assert start.raw[:4] == ("new-session", "-d", "-s", "alpha") and start.creates == "boot:mac/default"
-    assert not any(s.raw[:3] == ("new-session", "-d", "-s") and s.raw[3] == "alpha" and s.id != "set1.start" for s in p.steps)
+    # the start step IS the first workspace: it creates that occupant's slot, so
+    # {pane:<slot>} / {ws:<slot>} resolve from it and no second new-session runs
+    assert start.raw[:4] == ("new-session", "-d", "-s", "alpha")
+    assert start.creates == tmux_roster.by_human("mac/default/alpha/edit/p1").slot_id
+    assert "-n" in start.raw and start.raw[start.raw.index("-n") + 1] == "edit"   # select-layout needs the name
+    assert len([s for s in p.steps if s.raw[:3] == ("new-session", "-d", "-s")]) == 1
+    assert not any(t.startswith("{pane:") or t.startswith("{ws:")
+                   for s in p.steps for t in s.raw if s.creates is None and not s.placeholders)
     assert any(s.raw[:2] == ("new-window", "-d") and "logs" in s.raw for s in p.steps)
     assert any(s.raw[:3] == ("split-window", "-d", "-t") for s in p.steps)
     lay = next(s for s in p.steps if s.raw[:1] == ("select-layout",))
@@ -273,3 +313,146 @@ def test_manual_step_exec_needs_confirmation(mixed_fleet, tmp_path):
     j = Journal(tmp_path / "j.jsonl")
     assert X.Executor(mixed_fleet, j, run_id="r", confirm=lambda t: False).run(plan).failed
     assert not X.Executor(mixed_fleet, j, run_id="r", confirm=lambda t: True).run(plan).failed
+
+
+# -- execution: the gap round 2 named (plans were only ever shape-checked) ----
+
+class FakeTmux:
+    """A tmux server that answers the `-P -F` creates and records argv.
+    Enough to run a whole cold `set` through the Executor."""
+
+    def __init__(self, host, session):
+        from watchbill.transport.base import backend_for
+        self.host, self.session, self.backend = host, session, backend_for(host)
+        self.calls: list[tuple[str, ...]] = []
+        self.n = 0
+
+    def mux_argv(self, *a):
+        return [*self.backend.cli_prefix(self.session), *a]
+
+    herdr_argv = mux_argv
+
+    def shell_argv(self, argv):
+        return list(argv)
+
+    def mux(self, *a, timeout=30.0):
+        from watchbill.transport.base import CmdResult
+        self.calls.append(tuple(a))
+        argv = tuple(self.mux_argv(*a))
+        assert not any("{pane:" in t or "{ws:" in t for t in a), f"unresolved placeholder reached tmux: {a}"
+        if a[:1] == ("new-session",):
+            self.n += 1
+            return CmdResult(argv, 0, f"$9|%{self.n}\n")
+        if a[:1] == ("new-window",):
+            self.n += 1
+            return CmdResult(argv, 0, f"@9|%{self.n}\n")
+        if a[:1] == ("split-window",):
+            self.n += 1
+            return CmdResult(argv, 0, f"%{self.n}\n")
+        if a[:1] == ("display-message",):
+            return CmdResult(argv, 0, "3.7c|/tmp/tmux-1000/default|1\n")
+        if a[:1] == ("capture-pane",):
+            return CmdResult(argv, 0, "$ ")
+        return CmdResult(argv, 0, "")
+
+    herdr = mux
+
+    def shell(self, argv, timeout=60.0):
+        from watchbill.transport.base import CmdResult
+        self.calls.append(("shell", *argv))
+        assert not any("{pane:" in t or "{ws:" in t for t in argv), f"unresolved placeholder in shell: {argv}"
+        return CmdResult(tuple(argv), 0, "")
+
+    def reachable(self):
+        return True
+
+
+def test_executor_runs_a_whole_tmux_cold_set(tmux_roster, mixed_fleet, probes, tmp_path):
+    """Round 2 blocker 1: a cold tmux `set` must resolve every {pane:}/{ws:}
+    placeholder at run time. The plan shape alone never proved this because no
+    test had executed a tmux plan."""
+    from watchbill import exec as X
+    from watchbill.journal import Journal
+    made: dict = {}
+
+    def factory(host, session):
+        return made.setdefault((host.name, session), FakeTmux(host, session))
+
+    pr = {"mac": probes["vps"].__class__(**{**probes["vps"].__dict__, "host": "mac", "running": False, "flavor": "brew"})}
+    plan = plan_set(tmux_roster, mixed_fleet, SetOptions(targets=["alpha"], host="mac", cockpit_host="rig2",
+                                                         self_pane="w4:p1", probes=pr, approved=True, no_prompt=True))
+    res = X.Executor(mixed_fleet, Journal(tmp_path / "j.jsonl"), run_id="t1", session_factory=factory).run(plan)
+    assert res.code == 0 and not res.failed, res.failed
+    calls = made[("mac", "default")].calls
+    assert len([c for c in calls if c[:1] == ("new-session",)]) == 1
+    # every slot the plan restored got a real pane id
+    for slot in {s.creates for s in plan.steps if s.creates and not s.creates.startswith(("boot:", "viewport:"))}:
+        assert res.pane_map[slot].startswith("%")
+    assert any(c[:1] == ("select-layout",) for c in calls)
+
+
+def test_tmux_relieve_cold_starts_the_session_once(tmux_roster, mixed_fleet, probes):
+    """Round 2 blocker 2: start_steps + set_steps both used to emit
+    `new-session -s alpha`, and the second would fail as a duplicate."""
+    tmux_roster.by_human("mac/default/alpha/logs/p1").agent_status = "idle"
+    pr = {"mac": probes["vps"].__class__(**{**probes["vps"].__dict__, "host": "mac", "flavor": "brew", "handoff_supported": False})}
+    p = plan_relieve(tmux_roster, mixed_fleet, RelieveOptions(action="upgrade-mux", hosts=["mac"], cockpit_host="rig2", probes=pr))
+    news = [s for s in p.steps if s.raw[:1] == ("new-session",)]
+    assert len(news) == 1, [s.id for s in news]
+    ids = [s.id for s in p.steps]
+    assert ids.index("mac.stop1") < ids.index(news[0].id)
+    assert check_verbs_allowed(p.steps) == []          # the planned kill-server is sanctioned
+
+
+def test_no_herdr_only_verbs_reach_a_tmux_host(tmux_roster, mixed_fleet, probes):
+    """Round 2 blocker 3: RemoteCmd(via=...) used to be replayed against the
+    host's mux, turning `herdr integration install` into `tmux integration
+    install` and the default verify into `tmux status server --json`."""
+    pr = {"mac": probes["vps"].__class__(**{**probes["vps"].__dict__, "host": "mac", "flavor": "brew",
+                                            "agent_versions": {"claude": "2.1.267"}, "agent_flavors": {"claude": "brew"}})}
+    p = plan_relieve(tmux_roster, mixed_fleet, RelieveOptions(action="upgrade-agents", hosts=["mac"],
+                                                              action_options={"kinds": ["claude"]}, cockpit_host="rig2",
+                                                              probes=pr, force=True))
+    for s in p.steps:
+        if s.mux == "tmux" and s.via == "mux":
+            assert s.raw[0] in ("new-session", "new-window", "split-window", "select-layout", "send-keys",
+                                "respawn-pane", "kill-server", "kill-session", "display-message", "capture-pane",
+                                "source-file", "list-sessions", "list-windows", "list-panes"), s.raw
+    assert not any("integration" in s.raw for s in p.steps)
+    verify = [s for s in p.steps if s.id.startswith("mac.verify")]
+    assert verify and verify[0].raw[:1] == ("display-message",)
+
+
+def test_blocked_check_uses_the_occupants_kind(tmux_roster, mixed_fleet, probes):
+    """Round 2 blocker 5: exec re-read the screen with kind=None, so the
+    kind-specific approval patterns (Claude's `❯ 1. Yes`) never matched."""
+    from watchbill import exec as X
+    from watchbill.journal import Journal
+    from watchbill.plan import StepKind
+    o = tmux_roster.by_human("mac/default/alpha/edit/p1")
+    o.resume_prompt = type(o.resume_prompt)("pinned", "carry on")
+    o.resume_argv = ["claude", "--continue"]
+    p = plan_set(tmux_roster, mixed_fleet, SetOptions(targets=[o.human_id], cockpit_host="rig2", self_pane="w4:p1",
+                                                      probes={"mac": probes["vps"]}, live=tmux_roster, approved=True))
+    prompt = next(s for s in p.steps if s.precondition == "agent_status != blocked")
+    assert prompt.agent_kind == "claude"
+    # the idle wait insists on quiet, not merely "a binary is running"
+    wait = next(s for s in p.steps if s.kind is StepKind.WAIT and s.via == "shell")
+    assert '"$q" -ge 30' in wait.raw[2] and "window_activity" in wait.raw[2]
+
+    class Blocked(FakeTmux):
+        def mux(self, *a, timeout=30.0):
+            if a[:1] == ("capture-pane",):
+                from watchbill.transport.base import CmdResult
+                return CmdResult(tuple(a), 0, "Do you want to proceed?\n❯ 1. Yes\n  2. No\n")
+            return super().mux(*a, timeout=timeout)
+    fake = Blocked(mixed_fleet.host("mac"), "default")
+    res = X.Executor(mixed_fleet, Journal(tmp_path_factory()), run_id="b1", session_factory=lambda h, s: fake).run(p)
+    assert any("blocked" in f for f in res.failed), res.failed
+    assert not any(c[:1] == ("send-keys",) and "carry on" in c for c in fake.calls)
+
+
+def tmp_path_factory():
+    import tempfile
+    from pathlib import Path
+    return Path(tempfile.mkdtemp()) / "j.jsonl"

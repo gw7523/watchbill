@@ -34,7 +34,7 @@ class RemoteCmd:
     argv: tuple[str, ...]
     description: str
     mutating: bool = True
-    via: str = "shell"        # "shell" → HostSession.shell, "herdr" → HostSession.herdr (session-scoped)
+    via: str = "shell"        # "shell" → HostSession.shell; "mux" → HostSession.mux (argv[0] = backend name)
     unverified: bool = False  # UNVERIFIED-0.8.2 flag; dry-run shows it
     before_stop: bool = True  # run before `session stop` (default: needs no running server)
 
@@ -92,8 +92,13 @@ class BaseAction:
         return p
 
     def verify(self, host: Host) -> Verify:
-        return Verify("herdr server answers and version matches",
-                      (RemoteCmd((host.herdr_bin, "status", "server", "--json"), "server status", mutating=False, via="herdr"),),
+        """Default post-action check: the host's multiplexer answers again.
+        Uses the backend's own status verb — `herdr status server --json` on a
+        herdr host, `tmux display-message -p …` on a tmux one."""
+        from .. import mux as _mux
+        be = _mux.get(host.mux, **host.mux_options)
+        return Verify(f"{be.name} answers and the version matches",
+                      (RemoteCmd((be.name, *be.status_argv()), f"{be.name} status", mutating=False, via="mux"),),
                       self.options.get("expected_version"))
 
 

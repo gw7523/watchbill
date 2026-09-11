@@ -67,7 +67,7 @@ def test_upgrade_agents_mise_flavor_and_integration_refresh(fleet, probes):
     argvs = [c.argv for c in cmds]
     assert ("mise", "upgrade", "claude") in argvs and ("mise", "upgrade", "codex") in argvs
     assert ("herdr", "integration", "install", "claude") in argvs
-    assert all(c.via == "herdr" for c in cmds if "integration" in c.argv)
+    assert all(c.via == "mux" for c in cmds if "integration" in c.argv)
     b = actions.get("upgrade-agents", ctx(probes, kinds=["grok"])).blast_radius()
     assert b.park_kinds == {"grok"} and not b.needs_session_stop
 

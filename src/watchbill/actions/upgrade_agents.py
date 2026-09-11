@@ -67,6 +67,9 @@ class UpgradeAgents(BaseAction):
                 out.append(RemoteCmd(argv, f"{kind} self-update", unverified=unverified))
             else:
                 raise ActionUnavailable(f"{host.name}: no upgrade path for agent kind {kind!r} (flavor={flavor})")
-            out.append(RemoteCmd((host.herdr_bin, "integration", "install", kind),
-                                 f"refresh herdr {kind} integration hook", via="herdr"))
+            if host.mux == "herdr":
+                # Only Herdr ships per-agent integration hooks; tmux and cmux
+                # have no equivalent, so there is nothing to refresh there.
+                out.append(RemoteCmd((host.herdr_bin, "integration", "install", kind),
+                                     f"refresh herdr {kind} integration hook", via="mux"))
         return out

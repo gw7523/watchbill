@@ -20,6 +20,8 @@ class OmarchyUpdate(BaseAction):
         return BlastRadius(park_roles=frozenset({"agent"}), needs_session_stop=True, needs_client_attach=True)
 
     def commands(self, host: Host, probe: Probe) -> list[RemoteCmd]:
+        if host.mux == "cmux":
+            raise ActionUnavailable(f"{host.name}: cmux runs on macOS; omarchy-update is an Arch/Omarchy command")
         if probe.flavor != "pacman":
             raise ActionUnavailable(f"{host.name}: omarchy-update needs a pacman/Omarchy host (flavor={probe.flavor})")
         return [RemoteCmd(("omarchy-update", "-y"), "Omarchy + system package update, unattended", before_stop=False)]

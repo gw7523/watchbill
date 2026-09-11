@@ -72,7 +72,8 @@ def test_modes(roster, fleet):
 def test_watchers_are_interrupted_not_exited(roster, fleet):
     p = plan_secure(roster, fleet, opts(targets=["rig2/default/api/1/p2"], include_local=True))
     step = next(s for s in p.steps if s.verb == ("pane", "send-keys"))
-    assert step.raw[-1] == "ctrl-c" and step.unverified
+    # verified on 0.8.2: `ctrl-c` is rejected with invalid_key, `C-c` is accepted
+    assert step.raw[-1] == "C-c" and not step.unverified
 
 
 def test_dry_run_schedules_nothing_mutating(roster, fleet):

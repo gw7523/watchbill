@@ -145,9 +145,16 @@ class Step:
     # step's JSON result yields; exec fills the placeholder map from it.
     creates: str | None = None
     unverified: bool = False
-    # via: which transport primitive runs `raw`: mux | herdr (= mux, legacy) | shell | local | none
+    # via: which transport primitive runs `raw`: mux | shell | local | none
     via: str = "none"
     mux: str = "herdr"     # backend whose CLI `raw` addresses when via == mux
+    # planned_stop: this step IS the blast radius's declared session stop. On
+    # tmux the session *is* the server, so `kill-server` is both the ordinary
+    # stop and the forbidden one; the flag says which this is.
+    planned_stop: bool = False
+    # agent_kind: the occupant's kind, so exec can match the right approval
+    # patterns when a mux has no native blocked state (tmux).
+    agent_kind: str | None = None
 
     @property
     def verb(self) -> tuple[str, ...]:
@@ -187,10 +194,16 @@ class Plan:
         return [s for s in self.steps if s.mutating]
 
     def scheduled(self) -> list[Step]:
-        """Steps ``exec`` will run. Dry-run schedules only read-only steps."""
+        """Steps ``exec`` will run.
+
+        Dry-run schedules read-only steps only — and not WAIT steps: a wait
+        observes the effect of a mutation that dry-run skipped, so running it
+        would block for the full timeout waiting for something nobody asked
+        for (an agent told to `/exit` only in the plan text, say).
+        """
         if self.approved:
             return list(self.steps)
-        return [s for s in self.steps if not s.mutating]
+        return [s for s in self.steps if not s.mutating and s.kind is not StepKind.WAIT]
 
     def hosts(self) -> list[str]:
         seen: dict[str, None] = {}
@@ -251,8 +264,8 @@ def check_verbs_allowed(steps: Iterable[Step], *, force_server_stop: bool = Fals
         v = s.verb
         if v == ("server", "stop") and not force_server_stop:
             bad.append(f"{s.id}: herdr server stop requires --force-server-stop")
-        if s.mux == "tmux" and v == ("kill-server",) and not force_server_stop:
-            bad.append(f"{s.id}: tmux kill-server requires --force-server-stop")
+        if s.mux == "tmux" and v == ("kill-server",) and not (force_server_stop or s.planned_stop):
+            bad.append(f"{s.id}: unplanned tmux kill-server requires --force-server-stop")
         if v and v[0] == "machine":
             bad.append(f"{s.id}: herdr machine is not a 0.8.2 dependency")
     return bad

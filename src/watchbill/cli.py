@@ -53,7 +53,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("targets", nargs="*", help="slot_id, human_id, or workspace[/tab/pane] label; none = fleet")
     _mut_flags(s)
     s.add_argument("--force", action="store_true", help="park agents that are working")
-    s.add_argument("--force-server-stop", action="store_true", help="allow `herdr server stop` (never default)")
+    s.add_argument("--force-server-stop", action="store_true",
+                   help="allow an UNPLANNED whole-server stop: `herdr server stop`, or a `tmux kill-server` that is not "
+                        "the declared session stop of a maintenance window (never default)")
 
     s = sub.add_parser("set", help="fall in from a roster (dry-run unless --yes)")
     s.add_argument("targets", nargs="*")
@@ -144,7 +146,8 @@ def _roll(fleet: hosts.Fleet, args, *, reason: str = "manual", excerpts: bool = 
         templates = {f.stem: f.read_text() for f in pdir.glob("*.txt")}
     cockpit_host, self_pane = _cockpit(fleet)
     ro = collect.build_roster(fleet.name, facts, slots=slots, allowlist=allow, pins=pins, templates=templates,
-                              cockpit={"host": cockpit_host, "pane_id": self_pane}, reason=reason)
+                              cockpit={"host": cockpit_host, "pane_id": self_pane}, reason=reason,
+                              idle_after=collect.idle_after_map(fleet))
     previous = _load_current(fleet.name)
     ro = _roster.merge(ro, previous)
     slots.save(paths.slots_file())

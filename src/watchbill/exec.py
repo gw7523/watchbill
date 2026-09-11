@@ -107,7 +107,9 @@ class Executor:
             blocked = status == "blocked"
         else:
             from .detect import looks_blocked   # tmux: agent_get returns the screen
-            blocked = looks_blocked(None, res.stdout)
+            # step.agent_kind carries the occupant's kind so the kind-specific
+            # approval patterns match; without it only the generic ones would.
+            blocked = looks_blocked(step.agent_kind, res.stdout)
         if blocked:
             return f"agent {target} is blocked on an approval/question dialog; prompt refused"
         return None

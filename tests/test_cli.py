@@ -57,12 +57,20 @@ def test_secure_dry_run_and_refusals(xdg, fixture_collect, capsys):
     assert "DRY-RUN" in out and "/exit" in out
 
 
-def test_secure_yes_snaps_first_then_hits_unimplemented_transport(xdg, fixture_collect, capsys):
+def test_secure_yes_snaps_first_then_reports_a_transport_failure(xdg, fixture_collect, capsys):
+    """--yes writes the pre-secure roster, then runs. `ser6.example` is an
+    RFC-2606 reserved name that cannot resolve, so the ssh transport fails
+    cleanly: exit 4, the error journaled, later steps on that host skipped,
+    and no exception escapes."""
     assert cli.main(["secure", "park", "ser6/default/personal-config/1/p1", "--yes"]) == 4
     out = capsys.readouterr().out
-    assert "pre-secure" in out and "not implemented in this pass" in out
+    assert "pre-secure" in out and "FAIL ser6" in out
     rosters = list(paths.rosters_dir("test").glob("*-pre-secure.json"))
     assert len(rosters) == 1 and paths.current_roster("test").exists()
+    entries = json.loads("[" + ",".join(paths.journal_file().read_text().splitlines()) + "]")
+    fails = [e for e in entries if e["status"] == "fail"]
+    assert fails and fails[0]["host"] == "ser6"
+    assert any(e["status"] == "skipped" for e in entries)   # the rest of that host is abandoned
 
 
 def test_snap_refuses_when_every_host_is_down(xdg, fixture_collect, capsys):

@@ -51,6 +51,13 @@ cmux hooks setup [codex | --agent opencode]   # installs agent resume hooks
 cmux restore-session                          # re-apply the last saved snapshot
 cmux local-tmux | ssh-tmux | mosh-tmux        # tmux-owned persistence variants
 cmux ping | capabilities [--json] | identify [--json]
+
+# sidebar / notification surface (documented; Watchbill only reads these)
+cmux list-notifications [--json]   cmux clear-notifications
+cmux notify --title T --body B [--subtitle S]
+cmux set-status <key> <value> [--icon --color --priority --workspace]
+cmux clear-status <key> | list-status | set-progress <0.0-1.0> --label T | clear-progress
+cmux log "msg" [--level ...] | clear-log | list-log [--limit N] | sidebar-state [--workspace ID]
 ```
 
 Global flags: `--socket PATH`, `--json`, `--window ID`, `--workspace ID`,
@@ -73,6 +80,9 @@ is the closest thing to Herdr's `agent_session`, and Watchbill reads it
 
 ## Absent from the docs (fail closed until probed)
 
+- Whether `list-panels` lists *panels* or *surfaces*: the published reference
+  describes it as "List all surfaces in the current workspace", which sits
+  badly against panels→tabs. **Probe before trusting the tab/pane split.**
 - Any command that lists a surface's **cwd, pid, or foreground process**.
   `list-pane-surfaces --json` field names are unknown. Until probed, cmux
   occupants get `role` from the resume binding (agent) or `shell`, cwd from

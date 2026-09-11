@@ -29,13 +29,30 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - scope: no live execution; no new verbs beyond reload-config / upgrade-mux alias
 - wall-clock: today (2026-09-11)
 
-## Graph position
-- PLAN: done (docs/mux-backends.md, the one-page dissent)
-- PLAN-REVIEW: folded into CODE-REVIEW round 2 (design + code reviewed together; decision below)
-- BRANCH: OVERRULED — commits go straight to main (personal private repo, single writer, user said "Commit to the repo"); recorded here rather than pretending a lane branch existed
-- IMPLEMENT ⇄ PROVE: done; GATE green at 70ad647
-- CODE-REVIEW: **current node** — Grok run-mtxfym2f-w2bcsa in progress; exit = review file with Verdict
-- next edge: DISPOSITION (same day, every finding ACCEPTED/PARTIAL/NOTED/OVERRULED-with-reason) → IMPLEMENT⇄PROVE for should-fixes → CLOSE (run record, memory, report)
+## Graph position — lane 1 (mux axis): CLOSED
+- PLAN → docs/mux-backends.md (the one-page dissent; ACCEPTED by the reviewer)
+- BRANCH: OVERRULED — commits go straight to main (private repo, single writer, user said "Commit to the repo")
+- IMPLEMENT ⇄ PROVE → GATE green
+- CODE-REVIEW → docs/reviews/2026-09-11-grok-review-2.md, verdict **request-changes**, 5 blockers
+- DISPOSITION → docs/reviews/2026-09-11-disposition-2.md (same day; 5 blockers fixed, 8 should-fix accepted, 1 overruled with reason, nits split accepted/noted)
+- CLOSE → run record appended; docs in the same commits as the behaviour
+
+## Graph position — lane 2 (MVP transports): CLOSED
+- Human gate opened ("let's get started on the ... implementation")
+- PLAN → contract milestone 1: local + ssh_cli transports, live roll/snap/secure/set
+- IMPLEMENT ⇄ PROVE → `transport.run_argv` is the single spawn point; local + ssh_cli execute;
+  live roll/snap/status/doctor verified against the real cockpit; tests/test_live.py is the oracle
+- PROVE also probed the UNVERIFIED-0.8.2 list on an ISOLATED `--session wbprobe` server
+  (started, probed, stopped, deleted; the `default` session with four live agents was never touched)
+  → five herdr corrections, each now pinned by a test
+- CLOSE → run record appended
+
+## Next lane (not started)
+- MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
+  host, and a human decision to run a mutating verb with `--yes` against real agents.
+  Everything up to `--yes` is exercised; nothing has ever parked a live agent.
+- Unprobed: park slash commands other than Claude `/exit`, `hermes --resume`, every cmux verb
+  (needs a Mac), tmux approval-prompt tails per agent kind (needs the Macs' real dialogs).
 
 ## Decisions
 - mux is a per-host axis orthogonal to transport; one mux per host (why: a host has one PTY owner; mixing muxes per session would double every planner path)

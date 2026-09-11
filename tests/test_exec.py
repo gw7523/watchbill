@@ -27,9 +27,12 @@ def test_dry_run_never_reaches_a_mutating_verb(roster, fleet, probes, fake_sessi
         assert not plan.approved
         for bad in (("session", "stop"), ("pane", "close"), ("agent", "prompt"), ("agent", "start"), ("pane", "send-text")):
             assert bad not in [s.verb for s in plan.scheduled()]
+        # a wait observes a mutation that dry-run skipped: never scheduled, or it blocks
+        assert not [s for s in plan.scheduled() if s.kind is StepKind.WAIT]
         j = journal(tmp_path)
         res = X.Executor(fleet, j, run_id="r1", session_factory=fake_sessions).run(plan)   # FakeSession raises on mutation
-        assert res.code == OK and res.dry == len(plan.mutating_steps())
+        waits = [s for s in plan.steps if s.kind is StepKind.WAIT]
+        assert res.code == OK and res.dry == len(plan.mutating_steps()) + len(waits)
         assert {e["status"] for e in j.entries()} <= {"dry-run", "ok", "host-start", "set-complete"}
         assert not any(is_mut for (_h, is_mut) in [(c, c[1:3] in {("session", "stop"), ("pane", "close")})
                                                    for fs in fake_sessions.made.values() for c in fs.calls])

@@ -40,7 +40,8 @@ src/watchbill/
   transport/
     base.py           HostSession protocol, CmdResult, NotImplementedInThisPass
     local.py          cockpit's own server
-    ssh_cli.py        DEFAULT: ssh BatchMode + remote `herdr --session S …`
+    ssh_cli.py        DEFAULT: ssh BatchMode + the host backend's CLI prefix
+                      (`herdr --session S`, `tmux -L S`, `cmux --socket P`)
     ssh_socket.py     later: forwarded socket, JSON-RPC (layout.export/apply live here)
     herdr_remote.py   later, opt-in after doctor says versions match
   collect.py          gather() over a transport (read-only) + build_roster() (pure)
@@ -55,7 +56,8 @@ src/watchbill/
   plan_set.py         pure: roster → fall-in Plan (start, attach, shape, resume, relaunch, prompt)
   plan_relieve.py     pure: secure → action → set composition; live-mode gate
   actions/            maintenance-window plugins (Action protocol, BlastRadius, RemoteCmd)
-    base.py upgrade_herdr.py restart_herdr.py omarchy_update.py upgrade_agents.py
+    base.py upgrade_herdr.py (UpgradeMux + alias) restart_herdr.py omarchy_update.py
+    reload_config.py upgrade_agents.py
     install_plugin.py restart_harness.py custom.py
   exec.py             the only module that mutates a live server; journal; placeholders; dry-run
   doctor.py           assess() pure + check() live: version, protocol, install flavor, handoff support

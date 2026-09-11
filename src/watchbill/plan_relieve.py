@@ -62,7 +62,10 @@ def session_json_path(session: str) -> str:
 def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
     if opts.mode not in MODES:
         raise ValueError(f"unknown relieve mode {opts.mode!r}")
-    ctx = _actions.ActionContext(options={**opts.action_options, "mode": opts.mode, "expected_version": opts.expected_version},
+    hosts_in_scope = opts.hosts or [h.name for h in fleet.hosts]
+    muxes = {fleet.host(h).mux for h in hosts_in_scope if fleet.host(h)}
+    ctx = _actions.ActionContext(options={**opts.action_options, "mode": opts.mode, "expected_version": opts.expected_version,
+                                          "mux": muxes.pop() if len(muxes) == 1 else "herdr"},
                                  probes=opts.probes)
     action = _actions.get(opts.action, ctx)
     blast = action.blast_radius()
@@ -142,7 +145,11 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         #      declared session stop, then the rest (a stopped socket answers nothing)
         def emit(cmd_list, offset):
             for i, c in enumerate(cmd_list, offset):
-                if c.via in ("herdr", "mux"):
+                if c.via == "mux":
+                    # argv[0] is the backend's own binary name, replaced by the
+                    # host's mux prefix. An action that means the *herdr* CLI
+                    # specifically must not reach a tmux/cmux host.
+                    assert c.argv[0] == be.name, f"{opts.action}: {c.argv[0]!r} command on a {be.name} host"
                     mux_step(plan, fleet, f"{tag}act{i}", hn, sessions[0], c.description, *c.argv[1:], unverified=c.unverified)
                 else:
                     plan.add(Step(id=f"{tag}act{i}", kind=StepKind.SHELL, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
@@ -158,11 +165,12 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
                                   description=f"MANUAL: quit {be.name} on {hn} (it saves its session on quit); then continue"))
                 else:
                     note = "not server stop" if be.name == "herdr" else f"{be.name}: the server is the session"
-                    mux_step(plan, fleet, f"{tag}stop{i}", hn, s, f"stop session {s} (blast radius; {note})", *stop_argv)
+                    mux_step(plan, fleet, f"{tag}stop{i}", hn, s, f"stop session {s} (blast radius; {note})",
+                             *stop_argv, planned_stop=True)
         emit(late, len(early) + 1)
         # 6. verify
         for i, c in enumerate(verify.commands, 1):
-            if c.via in ("herdr", "mux"):
+            if c.via == "mux":
                 mux_step(plan, fleet, f"{tag}verify{i}", hn, sessions[0], verify.description, *c.argv[1:], kind=StepKind.WAIT)
             else:
                 plan.add(Step(id=f"{tag}verify{i}", kind=StepKind.WAIT, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
@@ -170,21 +178,21 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         if opts.expected_version:
             plan.add(Step(id=f"{tag}expect", kind=StepKind.NOTE, host=hn,
                           description=f"expect herdr {opts.expected_version} (doctor.expect_version)"))
-        # 7. start + attach if the session was stopped (even with nothing to set)
-        if stop:
+        # 7/8. bring it back. `set_steps` owns reach → start → attach → shape →
+        # resume, so a stopped session is started exactly once: on tmux the
+        # start IS the first workspace, and a second `new-session -s <label>`
+        # would fail with "duplicate session".
+        if parked:
+            set_steps(plan, roster, fleet, parked, probes=opts.probes, live=None if stop else roster,
+                      no_prompt=bool(opts.action_options.get("no_prompt")), cockpit_host=opts.cockpit_host,
+                      self_pane=opts.self_pane, tag=f"{tag}set", assume_running=not stop)
+        elif stop:
+            # nothing to restore, but the session must come back up
             for i, s in enumerate(sessions, 1):
                 shp = roster.shape_for(hn, s)
                 fw = shp.workspaces[0] if shp and shp.workspaces else {}
                 start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.", first_label=fw.get("label", "watchbill"), cwd=fw.get("cwd") or "~")
                 attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
-        elif blast.needs_client_attach and parked:
-            for i, s in enumerate(sessions, 1):
-                attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
-        # 8. set the parked slots (shape is rebuilt from scratch after a stop)
-        if parked:
-            set_steps(plan, roster, fleet, parked, probes=opts.probes, live=None if stop else roster,
-                      no_prompt=bool(opts.action_options.get("no_prompt")), cockpit_host=opts.cockpit_host,
-                      self_pane=opts.self_pane, tag=f"{tag}slots", assume_running=True, skip_attach=True)
         # 9. journal
         plan.add(Step(id=f"{tag}done", kind=StepKind.JOURNAL, host=hn, description="set-complete", mutating=True))
     return plan
