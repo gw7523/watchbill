@@ -10,13 +10,20 @@ import json
 import shlex
 from typing import Sequence
 
-from .base import Capabilities, MuxPane, MuxSnapshot, MuxTab, MuxWorkspace, Status
+from .base import POLL, Capabilities, MuxPane, MuxSnapshot, MuxTab, MuxWorkspace, Status, poll_loop
 
 CAPS = Capabilities(
     name="herdr", agent_detection="native", agent_status="native", native_resume=True, process_info=True,
     screen_read=True, layout_reapply=False, live_reload=True, live_handoff="official-only",
-    headless_start="unverified", plugin_install=True, needs_viewport=True, has_server=True,
+    headless_start="verified", plugin_install=True, needs_viewport=True, has_server=True,
 )
+
+# States that mean "the agent has settled and will accept input". `blocked` is
+# included on purpose: `agent wait` is LEVEL-triggered (verified 2026-09-11 —
+# `--until done` on an already-done agent returns at once), so waiting only for
+# `idle` hangs the full timeout on an agent that settled to `done` or `blocked`.
+# The prompt step's precondition then refuses a blocked agent in one round trip.
+SETTLED = ("idle", "done", "blocked")
 
 
 def _result(stdout: str) -> dict:
@@ -57,17 +64,20 @@ class HerdrBackend:
         return _result(stdout).get("process_info", {})
 
     def excerpt_argv(self, pane_id: str, lines: int) -> list[str] | None:
-        return ["pane", "read", pane_id, "--source", "recent", "--lines", str(lines), "--format", "text"]
+        # `--source recent` returns only output since the last read and is empty
+        # on a settled pane (verified); `visible` is the viewport we want.
+        return ["pane", "read", pane_id, "--source", "visible", "--lines", str(lines), "--format", "text"]
 
     # -- mutation ----------------------------------------------------
     def send_text(self, pane_id: str, text: str) -> list[str]:
         return ["pane", "send-text", pane_id, text]
 
     def send_enter(self, pane_id: str) -> list[str]:
-        return ["pane", "send-keys", pane_id, "enter"]          # UNVERIFIED key name
+        return ["pane", "send-keys", pane_id, "enter"]          # verified (`Enter` also accepted)
 
     def interrupt(self, pane_id: str) -> list[str]:
-        return ["pane", "send-keys", pane_id, "ctrl-c"]         # UNVERIFIED key name
+        # verified: `ctrl-c` is rejected with invalid_key; the tmux-style `C-c` is the name.
+        return ["pane", "send-keys", pane_id, "C-c"]
 
     def workspace_create(self, label: str, cwd: str) -> list[str]:
         return ["workspace", "create", "--label", label, "--cwd", cwd, "--no-focus"]
@@ -91,10 +101,18 @@ class HerdrBackend:
         return [argv]
 
     def agent_wait_exit(self, pane_ref: str, kind: str | None, timeout_ms: int) -> list[str]:
-        return ["agent", "wait", pane_ref, "--until", "unknown", "--timeout", str(timeout_ms)]
+        """Herdr has no "wait until the agent is gone" primitive: once the agent
+        exits the pane simply has none, and `agent wait` answers
+        `agent_not_found` (verified). `--until unknown` is a *state* an agent
+        that is still running can be in, so it is the wrong oracle. Poll
+        `agent get` until it fails instead."""
+        return [POLL, pane_ref, "gone", str(timeout_ms)]
 
     def agent_wait_idle(self, target: str, timeout_ms: int) -> list[str]:
-        return ["agent", "wait", target, "--until", "idle", "--timeout", str(timeout_ms)]
+        argv = ["agent", "wait", target]
+        for st in SETTLED:
+            argv += ["--until", st]
+        return [*argv, "--timeout", str(timeout_ms)]
 
     def agent_prompt(self, target: str, text: str) -> list[list[str]]:
         return [["agent", "prompt", target, text, "--wait", "--until", "working", "--timeout", "10000"]]
@@ -111,8 +129,11 @@ class HerdrBackend:
     def server_stop(self) -> list[str] | None:
         return ["server", "stop"]
 
-    def session_start(self, session: str, first_label: str, cwd: str) -> list[str] | None:
-        return None   # UNVERIFIED-0.8.2; hosts.toml `start` (systemd unit on Omarchy) is the path
+    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None) -> list[str] | None:
+        # Verified 2026-09-11: `herdr --session <name> server` starts a detached
+        # headless server. hosts.toml `start` still wins when a host sets one
+        # (Omarchy boxes prefer their systemd user unit).
+        return ["server"]
 
     def reload_config(self) -> list[str] | None:
         return ["server", "reload-config"]
@@ -140,6 +161,16 @@ class HerdrBackend:
 
     def wait_via(self) -> str:
         return "mux"
+
+    def resolve_poll(self, session: str, argv: Sequence[str]) -> list[str]:
+        """``[POLL, pane, "gone", timeout]`` → a shell loop that ends when the
+        pane no longer hosts an agent."""
+        a = list(argv)
+        if a[:1] != [POLL]:
+            return a
+        _, pane_ref, cond, timeout = a
+        get = shlex.join(["herdr", "--session", session, "agent", "get", pane_ref])
+        return poll_loop(get, timeout_ms=int(timeout), invert=(cond == "gone"))
 
 
 def snapshot_from_herdr(snap: dict) -> MuxSnapshot:

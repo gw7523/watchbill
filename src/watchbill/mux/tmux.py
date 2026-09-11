@@ -14,7 +14,7 @@ import shlex
 import time
 from typing import Sequence
 
-from .base import Capabilities, MuxPane, MuxSnapshot, MuxTab, MuxWorkspace, Status
+from .base import POLL, Capabilities, MuxPane, MuxSnapshot, MuxTab, MuxWorkspace, Status, poll_loop
 
 CAPS = Capabilities(
     name="tmux", agent_detection="derived", agent_status="heuristic", native_resume=False, process_info=True,
@@ -83,6 +83,11 @@ class TmuxBackend:
             w, h = (size.split("x") + ["0", "0"])[:2]
             x, y = (pos.split(",") + ["0", "0"])[:2]
             try:
+                # window_activity is WINDOW-scoped: a quiet agent sharing a window
+                # with a noisy pane reads as `working` (safe — parking refuses),
+                # and a blocked agent in a quiet window whose dialog matches no
+                # pattern reads as `idle` (unsafe — hence the screen check in
+                # detect.looks_blocked and again in exec before any key is sent).
                 age = max(0.0, now - float(act))
             except ValueError:
                 age = None
@@ -103,18 +108,32 @@ class TmuxBackend:
 
     def parse_process_info(self, pane: MuxPane, stdout: str) -> dict:
         """``ps`` rows; foreground = STAT contains ``+``. Last line may be the
-        cwd of the youngest process (Linux /proc)."""
-        procs, cwd = [], None
+        cwd of the youngest process (Linux /proc).
+
+        A pane's own process is normally the shell, so it is skipped — but
+        after ``respawn-pane -k`` the relaunched command *is* ``pane_pid``.
+        Dropping it would classify a running watcher as an empty shell and the
+        next ``set`` would not bring it back, so it is kept when it is the only
+        foreground process and is not a shell.
+        """
+        procs, cwd, own = [], None, None
         for line in stdout.splitlines():
             parts = line.split(None, 3)
             if len(parts) >= 4 and parts[0].isdigit():
                 pid, ppid, stat, args = parts
-                if "+" in stat and int(pid) != pane.pid:
-                    argv = shlex.split(args) if args else []
-                    procs.append({"pid": int(pid), "ppid": int(ppid), "argv": argv, "cmdline": args,
-                                  "name": argv[0].rsplit("/", 1)[-1] if argv else "", "cwd": pane.cwd})
+                if "+" not in stat:
+                    continue
+                argv = shlex.split(args) if args else []
+                rec = {"pid": int(pid), "ppid": int(ppid), "argv": argv, "cmdline": args,
+                       "name": argv[0].rsplit("/", 1)[-1] if argv else "", "cwd": pane.cwd}
+                if int(pid) == pane.pid:
+                    own = rec
+                else:
+                    procs.append(rec)
             elif line.startswith("/"):
                 cwd = line.strip()
+        if not procs and own and own["name"] not in ("bash", "zsh", "sh", "fish", "-bash", "-zsh"):
+            procs = [own]
         for p in procs:
             p["cwd"] = cwd or pane.cwd
         return {"pane_id": pane.pane_id, "shell_pid": pane.pid, "foreground_processes": procs,
@@ -133,8 +152,14 @@ class TmuxBackend:
     def interrupt(self, pane_id: str) -> list[str]:
         return ["send-keys", "-t", pane_id, "C-c"]
 
-    def workspace_create(self, label: str, cwd: str) -> list[str]:
-        return ["new-session", "-d", "-s", label, "-c", cwd, "-P", "-F", "#{session_id}|#{pane_id}"]
+    def workspace_create(self, label: str, cwd: str, window: str | None = None) -> list[str]:
+        # `-n` names the first window. Without it the window is auto-named after
+        # its process, and `select-layout -t <session>:<window-name>` (the only
+        # path that re-applies a recorded layout) would target nothing.
+        argv = ["new-session", "-d", "-s", label, "-c", cwd]
+        if window:
+            argv += ["-n", window]
+        return [*argv, "-P", "-F", "#{session_id}|#{pane_id}"]
 
     def tab_create(self, workspace_ref: str, label: str, cwd: str) -> list[str] | None:
         return ["new-window", "-d", "-t", workspace_ref, "-n", label, "-c", cwd, "-P", "-F", "#{window_id}|#{pane_id}"]
@@ -155,20 +180,31 @@ class TmuxBackend:
         return [self.send_text(pane_ref, shlex.join(argv)), self.send_enter(pane_ref)]
 
     def _poll(self, session: str, pane_ref: str, cond: str, timeout_ms: int) -> list[str]:
+        """One shell loop that exposes both signals the condition may use:
+        ``$c`` the pane's foreground command, ``$q`` seconds since the window
+        last produced output. tmux has no wait primitive, so every wait is
+        this loop."""
         n = max(1, timeout_ms // 1000)
-        cmd = (f'for i in $(seq 1 {n}); do c=$(tmux -L {shlex.quote(session)} display-message -t {shlex.quote(pane_ref)} '
-               f'-p "#{{pane_current_command}}"); {cond} && exit 0; sleep 1; done; exit 1')
+        fmt = "#{pane_current_command}|#{window_activity}"
+        read = (f'o=$(tmux -L {shlex.quote(session)} display-message -t {shlex.quote(pane_ref)} -p {shlex.quote(fmt)}); '
+                'c=${o%%|*}; a=${o##*|}; q=$(( $(date +%s) - ${a:-0} ))')
+        cmd = f'for i in $(seq 1 {n}); do {read}; {cond} && exit 0; sleep 1; done; exit 1'
         return ["sh", "-c", cmd]
 
     def agent_wait_exit(self, pane_ref: str, kind: str | None, timeout_ms: int) -> list[str]:
         from ..classify import AGENT_KINDS
         exe = AGENT_KINDS.get(kind or "", kind or "")
-        return ["__poll__", pane_ref, f'[ "$c" != {shlex.quote(exe)} ]', str(timeout_ms)]
+        return [POLL, pane_ref, f'[ "$c" != {shlex.quote(exe)} ]', str(timeout_ms)]
 
     def agent_wait_idle(self, target: str, timeout_ms: int) -> list[str]:
-        # idle = the agent binary is in the foreground and output has been quiet; the exec-side
-        # poll re-reads window_activity; here we only wait for the binary to be up.
-        return ["__poll__", target, '[ -n "$c" ] && [ "$c" != bash ] && [ "$c" != zsh ] && [ "$c" != sh ] && [ "$c" != fish ]', str(timeout_ms)]
+        """Idle on tmux = the agent binary is in the foreground AND the window
+        has been quiet for ``idle_after_s``. Waiting only for the binary would
+        let the next step type into an agent that is still mid-turn (or sitting
+        on an approval dialog); the prompt step's precondition then re-reads the
+        screen for a dialog before any key is sent."""
+        shell = " ".join(f'[ "$c" != {sh} ]' for sh in ("bash", "zsh", "sh", "fish") for _ in (0,))
+        cond = f'[ -n "$c" ] && {shell} && [ "$q" -ge {int(self.idle_after_s)} ]'
+        return [POLL, target, cond, str(timeout_ms)]
 
     def agent_prompt(self, target: str, text: str) -> list[list[str]]:
         return [self.send_text(target, text), self.send_enter(target)]
@@ -185,8 +221,9 @@ class TmuxBackend:
     def server_stop(self) -> list[str] | None:
         return ["kill-server"]
 
-    def session_start(self, session: str, first_label: str, cwd: str) -> list[str] | None:
-        return self.workspace_create(first_label, cwd)   # new-session -d starts the server
+    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None) -> list[str] | None:
+        # `new-session -d` starts the server AND makes the first workspace.
+        return self.workspace_create(first_label, cwd, window)
 
     def reload_config(self) -> list[str] | None:
         return ["source-file", self.conf]
@@ -219,9 +256,9 @@ class TmuxBackend:
         return "shell"
 
     def resolve_poll(self, session: str, argv: Sequence[str]) -> list[str]:
-        """``__poll__`` placeholder → the remote shell loop (needs the session)."""
+        """``POLL`` placeholder → the remote shell loop (needs the session)."""
         a = list(argv)
-        if a[:1] != ["__poll__"]:
+        if a[:1] != [POLL]:
             return a
         _, pane_ref, cond, timeout = a
         return self._poll(session, pane_ref, cond, int(timeout))

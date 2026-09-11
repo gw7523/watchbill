@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Sequence
 
-from .base import Capabilities, MuxPane, MuxSnapshot, MuxTab, MuxWorkspace, Status
+from .base import MANUAL, Capabilities, MuxPane, MuxSnapshot, MuxTab, MuxWorkspace, Status
 
 CAPS = Capabilities(
     name="cmux", agent_detection="binding", agent_status="none", native_resume=True, process_info=False,
@@ -124,10 +124,10 @@ class CmuxBackend:
         return [self.send_text(pane_ref, shlex.join(argv)), self.send_enter(pane_ref)]
 
     def agent_wait_exit(self, pane_ref: str, kind: str | None, timeout_ms: int) -> list[str]:
-        return ["__manual__", f"confirm that the agent in surface {pane_ref} has exited"]
+        return [MANUAL, f"confirm that the agent in surface {pane_ref} has exited"]
 
     def agent_wait_idle(self, target: str, timeout_ms: int) -> list[str]:
-        return ["__manual__", f"confirm that the agent in surface {target} is idle at its prompt"]
+        return [MANUAL, f"confirm that the agent in surface {target} is idle at its prompt"]
 
     def agent_prompt(self, target: str, text: str) -> list[list[str]]:
         return [self.send_text(target, text), self.send_enter(target)]
@@ -144,7 +144,7 @@ class CmuxBackend:
     def server_stop(self) -> list[str] | None:
         return None
 
-    def session_start(self, session: str, first_label: str, cwd: str) -> list[str] | None:
+    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None) -> list[str] | None:
         return None   # GUI relaunch is manual; then `restore-session`
 
     def restore_session(self) -> list[str]:
@@ -155,7 +155,7 @@ class CmuxBackend:
 
     def is_mutating(self, argv: Sequence[str]) -> bool:
         a = list(argv)
-        if a[:1] == ["__manual__"]:
+        if a[:1] == [MANUAL]:
             return False
         if a[:3] == ["surface", "resume", "show"]:
             return False

@@ -19,10 +19,15 @@ never reused — the same generation-scoping rule as Herdr.
 
 ## Read-only collection (verified)
 
+These are the exact formats `src/watchbill/mux/tmux.py` sends: they add
+`session_id`, `window_id` and `pane_tty` so the parser keys on tmux's own
+stable ids rather than on names. `tests/fixtures/tmux-3.7c.txt` is a capture
+in these formats.
+
 ```
-tmux -L S list-sessions -F '#{session_name}|#{session_windows}|#{session_attached}|#{session_created}'
-tmux -L S list-windows -a -F '#{session_name}|#{window_index}|#{window_name}|#{window_layout}|#{window_panes}'
-tmux -L S list-panes  -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_id}|#{pane_pid}|#{pane_current_command}|#{pane_current_path}|#{pane_title}|#{pane_active}|#{window_activity}|#{pane_width}x#{pane_height}|#{pane_left},#{pane_top}'
+tmux -L S list-sessions -F '#{session_name}|#{session_id}|#{session_windows}|#{session_attached}|#{session_created}'
+tmux -L S list-windows -a -F '#{session_name}|#{window_index}|#{window_id}|#{window_name}|#{window_layout}|#{window_panes}'
+tmux -L S list-panes  -a -F '#{session_name}|#{session_id}|#{window_index}|#{window_id}|#{window_name}|#{pane_index}|#{pane_id}|#{pane_pid}|#{pane_current_command}|#{pane_current_path}|#{pane_title}|#{pane_active}|#{window_activity}|#{pane_width}x#{pane_height}|#{pane_left},#{pane_top}|#{pane_tty}'
 tmux -L S display-message -p '#{version}|#{socket_path}|#{pid}'
 tmux -L S display-message -t %N -p '#{pane_tty}'
 ps -t <pts/N> -o pid,ppid,stat,args          # foreground = STAT contains '+'
@@ -52,7 +57,8 @@ idle/working/blocked state**: Watchbill derives those (see
 ## Mutation (verified command surface)
 
 ```
-tmux -L S new-session  -d -s <label> -c <cwd> -P -F '#{pane_id}'        # workspace create → prints %N
+tmux -L S new-session  -d -s <label> -c <cwd> -n <win> -P -F '#{session_id}|#{pane_id}'   # workspace create; -n names
+                                                                       # the first window so select-layout can target it
 tmux -L S new-window   -d -t <session> -n <name> -c <cwd> -P -F '#{pane_id}'   # tab create
 tmux -L S split-window -d -t %N -h|-v -c <cwd> -P -F '#{pane_id}'      # pane split (right | down)
 tmux -L S select-layout -t <session>:<window> '<layout string>'
