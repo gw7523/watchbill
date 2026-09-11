@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+CODEMAP.local.md
+graphify-out/
+.claude/settings.local.json
+# rosters, slots and journals are runtime state, never repo content
+*.roster.json
