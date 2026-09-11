@@ -1,0 +1,43 @@
+# Watchbill Herdr plugin — thin wrapper. Every action execs the CLI; no logic
+# lives here. Install with `herdr plugin link plugin/` from the repo, or
+# `herdr plugin install gw7523/watchbill/plugin`.
+id = "sfl.watchbill"
+name = "Watchbill"
+version = "0.0.1"
+min_herdr_version = "0.8.2"
+description = "Catalog, park, and restore the coding-agent fleet; run maintenance windows"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "roll"
+title = "Watchbill: roll (catalog fleet)"
+command = ["watchbill", "roll"]
+
+[[actions]]
+id = "snap"
+title = "Watchbill: snap (save roster)"
+command = ["watchbill", "snap", "-m", "manual"]
+
+[[actions]]
+id = "status"
+title = "Watchbill: status (drift vs roster)"
+command = ["watchbill", "status"]
+
+[[actions]]
+id = "secure_park_dry"
+title = "Watchbill: secure park (dry-run)"
+command = ["watchbill", "secure", "park"]
+
+[[actions]]
+id = "set_dry"
+title = "Watchbill: set (dry-run)"
+command = ["watchbill", "set"]
+
+[[actions]]
+id = "doctor"
+title = "Watchbill: doctor"
+command = ["watchbill", "doctor"]
+
+# Mutating windows are deliberately not exposed as one-click actions:
+# `--yes` must be typed by a human (or a chief-of-staff agent following
+# skills/watchbill/SKILL.md) after reading the dry-run plan.
