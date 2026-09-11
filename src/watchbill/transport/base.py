@@ -14,6 +14,8 @@ Transports never read OAuth or credential files and never rewrite base URLs.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, Sequence
 
@@ -63,6 +65,52 @@ class HostSession(Protocol):
     def herdr(self, *args: str, timeout: float = 30.0) -> CmdResult: ...
     def shell(self, argv: Sequence[str], timeout: float = 60.0) -> CmdResult: ...
     def reachable(self) -> bool: ...
+
+
+TIMEOUT_RC = 124      # conventional "timed out"
+NOTFOUND_RC = 127     # conventional "command not found"
+
+
+def run_argv(argv: Sequence[str], *, timeout: float, scrub: Sequence[str] = (), cwd: str | None = None) -> CmdResult:
+    """Spawn one process and never raise. The only ``subprocess`` call in the
+    package outside ``exec.local_runner``.
+
+    * never ``shell=True`` — argv is argv
+    * ``scrub`` removes env vars that would redirect the mux (``TMUX`` makes
+      tmux think it is nested; ``HERDR_SOCKET_PATH`` outranks ``HERDR_SESSION``)
+    * a timeout or a missing binary comes back as a failed :class:`CmdResult`,
+      so ``exec`` journals it as a step failure instead of unwinding the run
+    """
+    argv = [str(a) for a in argv]
+    env = dict(os.environ)
+    for k in scrub:
+        env.pop(k, None)
+    try:
+        cp = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd, check=False)
+    except FileNotFoundError:
+        return CmdResult(tuple(argv), NOTFOUND_RC, "", f"command not found: {argv[0]}")
+    except PermissionError as exc:
+        return CmdResult(tuple(argv), NOTFOUND_RC, "", str(exc))
+    except subprocess.TimeoutExpired as exc:
+        out = exc.stdout or ""
+        err = exc.stderr or ""
+        if isinstance(out, bytes):
+            out = out.decode(errors="replace")
+        if isinstance(err, bytes):
+            err = err.decode(errors="replace")
+        return CmdResult(tuple(argv), TIMEOUT_RC, out, (err + f"\ntimed out after {timeout}s").strip())
+    return CmdResult(tuple(argv), cp.returncode, cp.stdout or "", cp.stderr or "")
+
+
+def scrub_for(host: Host) -> tuple[str, ...]:
+    """Env vars to drop before running this host's mux CLI locally."""
+    if host.mux == "tmux":
+        return ("TMUX", "TMUX_PANE")          # otherwise tmux refuses: "sessions should be nested with care"
+    if host.mux == "herdr":
+        return ("HERDR_SOCKET_PATH",)         # outranks --session's sibling env; we always pass --session
+    if host.mux == "cmux":
+        return ("CMUX_SOCKET_PATH",) if host.mux_options.get("socket") else ()
+    return ()
 
 
 def backend_for(host: Host) -> "MuxBackend":

@@ -16,7 +16,7 @@ import shlex
 from typing import Sequence
 
 from ..hosts import Host
-from .base import CmdResult, NotImplementedInThisPass, backend_for, mux_prefix
+from .base import CmdResult, backend_for, mux_prefix, run_argv
 
 
 def ssh_prefix(host: Host) -> list[str]:
@@ -41,12 +41,15 @@ class SshCliSession:
         return [*ssh_prefix(self.host), shlex.join(list(argv))]
 
     def mux(self, *args: str, timeout: float = 30.0) -> CmdResult:
-        raise NotImplementedInThisPass(f"ssh_cli {self.host.mux} {' '.join(args)} on {self.host.name}")
+        # No env scrubbing: sshd starts a fresh login shell on the far side.
+        return run_argv(self.mux_argv(*args), timeout=timeout)
 
     herdr = mux
 
     def shell(self, argv: Sequence[str], timeout: float = 60.0) -> CmdResult:
-        raise NotImplementedInThisPass(f"ssh_cli shell on {self.host.name}")
+        return run_argv(self.shell_argv(argv), timeout=timeout)
 
     def reachable(self) -> bool:
-        raise NotImplementedInThisPass(f"ssh_cli reachability probe for {self.host.name}")
+        """BatchMode probe: a missing key or a host-key prompt fails fast
+        instead of hanging a rolling relieve."""
+        return run_argv([*ssh_prefix(self.host), "true"], timeout=self.host.connect_timeout + 5).ok

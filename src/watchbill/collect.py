@@ -96,11 +96,31 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
     return facts
 
 
+def probe_install(hs: HostSession) -> tuple[str | None, bool]:
+    """Two read-only shell probes: where the mux binary lives and whether a
+    package owns it. Shared by ``gather_host`` and ``doctor.check`` so a plain
+    ``roll`` can report the install flavor (pacman hosts never get an
+    in-place upgrade command)."""
+    mux_bin = hs.backend.name
+    path = hs.shell(["sh", "-c", f"command -v {mux_bin}"])
+    owner = hs.shell(["sh", "-c", f'pacman -Qo "$(command -v {mux_bin})" >/dev/null 2>&1 && echo yes || echo no'])
+    return (path.stdout.strip() or None), owner.stdout.strip() == "yes"
+
+
+def idle_after_map(fleet) -> dict[str, float]:
+    """Per-host quiet threshold from ``[[host]] mux_options.idle_after_s``."""
+    return {h.name: float(h.mux_options.get("idle_after_s", 30.0)) for h in fleet.hosts}
+
+
 def gather_host(host: Host, *, excerpts: bool = False) -> HostFacts:
     hf = HostFacts(host=host.name, cockpit=host.cockpit, mux=host.mux)
+    probed = False
     for name in host.sessions:
         hs = make_session(host, name)
         try:
+            if not probed:
+                hf.herdr_path, hf.pacman_owned = probe_install(hs)
+                probed = True
             hf.sessions.append(gather(hs, excerpts=excerpts))
         except Exception as exc:  # transport errors mark the host, never abort the roll
             hf.reachable = False
@@ -141,7 +161,8 @@ def _binding_argv(binding: dict | None) -> tuple[list[str] | None, str | None]:
 def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowlist: _classify.Allowlist | None = None,
                  pins: prompts.Pins | None = None, templates: dict[str, str] | None = None,
                  cockpit: dict | None = None, reason: str = "manual", now: str | None = None,
-                 keep_excerpts: bool = True, idle_after_s: float = 30.0) -> Roster:
+                 keep_excerpts: bool = True, idle_after_s: float = 30.0,
+                 idle_after: dict[str, float] | None = None) -> Roster:
     now = now or now_iso()
     roster = Roster(fleet=fleet, taken_at=now, reason=reason, cockpit=cockpit or {})
     for hf in facts:
@@ -155,6 +176,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                    "live_handoff": bool((status0.get("capabilities") or {}).get("live_handoff"))},
         ))
         caps = _mux.CAPS[hf.mux]
+        host_idle = (idle_after or {}).get(hf.host, idle_after_s)
         for sf in hf.sessions:
             if not sf.snapshot:
                 continue
@@ -176,10 +198,12 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
             cwd_kind_count: dict[tuple[str, str], int] = {}
             if not caps.native_resume:
                 for p in snap.panes:
-                    cls0 = _classify.classify(_pane_dict(p), sf.process_info.get(p.pane_id))
+                    pinfo0 = sf.process_info.get(p.pane_id)
+                    cls0 = _classify.classify(_pane_dict(p), pinfo0)
                     if cls0.role == "agent" and cls0.kind:
-                        key = (cls0.kind, p.foreground_cwd or p.cwd)
-                        cwd_kind_count[key] = cwd_kind_count.get(key, 0) + 1
+                        # same key the lookup uses below, or two agents sharing a
+                        # real cwd would both still get `--continue`
+                        cwd_kind_count[_cwd_key(p, pinfo0)] = cwd_kind_count.get(_cwd_key(p, pinfo0), 0) + 1
             seen_labels: dict[tuple[str, str], int] = {}
             for pane in snap.panes:
                 pid = pane.pane_id
@@ -207,7 +231,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                         status = pane.agent_status
                     elif caps.agent_status == "heuristic":
                         status = detect.agent_status(cls.kind, activity_age_s=pane.activity_age_s, screen=excerpt,
-                                                     idle_after_s=idle_after_s)
+                                                     idle_after_s=host_idle)
                     else:
                         status = "unknown"
                 else:
@@ -231,7 +255,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 elif binding_argv:
                     resume_argv = binding_argv
                 elif not caps.native_resume and cls.kind:
-                    if cwd_kind_count.get((cls.kind, fg_cwd or cwd), 0) > 1:
+                    if cwd_kind_count.get((cls.kind, _effective_cwd(pane, pinfo)), 0) > 1:
                         resume_argv = None
                         resume_note = "continue-form ambiguous: another agent of this kind shares the cwd"
                     else:
@@ -249,7 +273,8 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                     agent_session=sess, resume_argv=resume_argv,
                     resume_prompt=rp, allow_relaunch=_classify.allow_relaunch(cls.role, cls.cmdline, allowlist),
                     live_ids=LiveIds(workspace_id=wsid, tab_id=tid, pane_id=pid, terminal_id=pane.terminal_id),
-                    tasking=(tasking + f" [{resume_note}]") if resume_note and tasking else (tasking or resume_note),
+                    tasking=_tasking(tasking, resume_note,
+                                 heuristic=(cls.role == "agent" and caps.agent_status == "heuristic")),
                     excerpt=excerpt if keep_excerpts else None, taken_at=now, mux=hf.mux,
                 )
                 roster.occupants.append(occ)
@@ -261,6 +286,33 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
             shape.workspaces = list(ws_shapes.values())
             roster.shapes.append(shape)
     return roster
+
+
+def _tasking(tasking: str | None, resume_note: str | None, *, heuristic: bool) -> str | None:
+    """Operator-visible notes. A heuristic agent status is flagged: on tmux an
+    `idle` is a guess from quiet time, and a false `idle` is the dangerous
+    direction (it would let something type into a live dialog)."""
+    bits = [b for b in (tasking, resume_note, "status: heuristic" if heuristic else None) if b]
+    if not bits:
+        return None
+    head, rest = bits[0], bits[1:]
+    return head + ("".join(f" [{r}]" for r in rest) if rest else "")
+
+
+def _effective_cwd(pane, pinfo: dict | None) -> str:
+    """The cwd an occupant really runs in: the foreground process's, else the
+    pane's. Pitfall 4, applied identically wherever cwd identity matters."""
+    if pinfo and pinfo.get("foreground_processes"):
+        got = pinfo["foreground_processes"][0].get("cwd")
+        if got:
+            return got
+    return pane.foreground_cwd or pane.cwd or ""
+
+
+def _cwd_key(pane, pinfo: dict | None) -> tuple[str, str]:
+    from .classify import classify as _c
+    cls = _c(_pane_dict(pane), pinfo)
+    return (cls.kind or "", _effective_cwd(pane, pinfo))
 
 
 def _pane_dict(p) -> dict:

@@ -47,7 +47,7 @@ testpaths = ["tests"]
 addopts = "-q"
 markers = [
   "pitfall: encodes one of the numbered Herdr 0.8.2 pitfalls from the build contract",
-  "red: expected to fail against the skeleton; becomes green when the MVP lands",
+  "live: runs against a real multiplexer on this box; skipped when none is running",
 ]
 
 [tool.uv]
