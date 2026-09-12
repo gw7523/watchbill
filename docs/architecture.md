@@ -13,6 +13,17 @@ Build contract: [kickoff-prompt.md](kickoff-prompt.md). Verified CLI facts:
 > the contract's own goals, verbs, sequences and pitfalls. When the spec
 > lands, the spec wins on behaviour and this document gets a diff pass.
 
+## Overrides to the received contract
+
+`docs/kickoff-prompt.md` is kept verbatim as the contract that was handed
+over; where the owner has since decided otherwise, the override is recorded
+here rather than by editing that file.
+
+| Contract said | Now | Why |
+|---|---|---|
+| Plugin id `sfl.watchbill` | **`gw7523.watchbill`** (2026-09-12) | Nothing in the tool is SFL-specific. The repo is personal and Apache-2.0, and the id namespaces by the GitHub owner it installs from (`herdr plugin install gw7523/watchbill/plugin`). |
+| One branch, one linked worktree per lane | commits go straight to `main` | Private single-writer repo; recorded in `.graph-loop/state.md`. |
+
 ## Hard constraint
 
 Herdr owns the PTY master. There is no export-and-re-adopt-PTY API. Stopping

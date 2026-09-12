@@ -10,7 +10,7 @@ Watchbill is a cockpit CLI that catalogs (`roll`/`snap`), stands down
 (`secure`), restores (`set`), and runs maintenance windows (`relieve`) over
 coding-agent fleets inside terminal multiplexers — **Herdr 0.8.2**
 (protocol 20) first, **tmux 3.x**, and **cmux** (macOS, docs-verified
-only) — over SSH or Tailscale. One mux per host (`mux =` in hosts.toml). Plugin id `sfl.watchbill`. Python 3.11+, stdlib at runtime,
+only) — over SSH or Tailscale. One mux per host (`mux =` in hosts.toml). Plugin id `gw7523.watchbill`. Python 3.11+, stdlib at runtime,
 `uv` for everything else. Apache-2.0. Personal repo `gw7523/watchbill`.
 
 ## Read in this order

@@ -17,4 +17,6 @@ __version__ = "0.0.1"
 ROSTER_SCHEMA_VERSION = 1
 HERDR_TARGET_VERSION = "0.8.2"
 HERDR_TARGET_PROTOCOL = 20
-PLUGIN_ID = "sfl.watchbill"
+# Namespaced by the GitHub owner it installs from. Not SFL-specific: the
+# contract's original `sfl.watchbill` was overridden by the owner 2026-09-12.
+PLUGIN_ID = "gw7523.watchbill"
