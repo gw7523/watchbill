@@ -187,6 +187,7 @@
         "excerpt": { "type": ["string", "null"], "description": "cockpit-local; stripped unless snap.excerpt_sync" },
         "taken_at": { "type": "string" },
         "mux": { "$ref": "#/$defs/mux" },
+        "excluded": { "type": ["string", "null"], "description": "the hosts.toml exclude glob this occupant matched; catalogued but never parked, relaunched or restored" },
         "agent_config": {
           "description": "Launch configuration recorded while the agent ran (additive, schema 1). Per-process parts are restored on resume; on-disk parts are verified before the agent starts.",
           "oneOf": [
@@ -200,6 +201,7 @@
                 "permission_mode": { "type": "string" },
                 "model": { "type": ["string", "null"] },
                 "config_dir": { "type": "string" },
+                "env_captured": { "type": "boolean", "description": "false where the process environment could not be read (non-Linux targets)" },
                 "env": { "type": "object", "additionalProperties": { "type": "string" },
                          "description": "allowlisted, non-secret seat and context variables only" },
                 "secret_env": { "type": "array", "items": { "type": "string" },

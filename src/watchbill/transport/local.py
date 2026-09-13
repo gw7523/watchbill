@@ -20,12 +20,12 @@ class LocalSession:
         self.backend = backend_for(host)
 
     def mux_argv(self, *args: str) -> list[str]:
-        return [*mux_prefix(self.host, self.session), *args]
+        return [*self.host.exec_prefix, *mux_prefix(self.host, self.session), *args]
 
     herdr_argv = mux_argv
 
     def shell_argv(self, argv: Sequence[str]) -> list[str]:
-        return list(argv)
+        return [*self.host.exec_prefix, *argv]
 
     def mux(self, *args: str, timeout: float = 30.0) -> CmdResult:
         return run_argv(self.mux_argv(*args), timeout=timeout, scrub=scrub_for(self.host))

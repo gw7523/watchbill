@@ -84,6 +84,42 @@ target = "air.tail1234.ts.net"
 mux = "cmux"                 # macOS app; docs-verified verbs, MANUAL relaunch steps
 ```
 
+## Deploying in other environments
+
+Watchbill is one Python package with no machine-specific paths, so the same
+install works on a plain host, inside a container seat, or on a Mac. Three
+`hosts.toml` keys make that practical:
+
+| Key | What it does | Example |
+|---|---|---|
+| `exec_prefix` | runs every command for that host *inside an environment* on the target, locally or over ssh | `["distrobox", "enter", "sfl", "--"]` |
+| `exclude` | globs against an occupant's command line or `human_id`; a match is catalogued but never parked, relaunched or restored, and a window that would stop or close what it runs in is refused | `["*distrobox enter sfl*"]` |
+| `sessions` | which multiplexer sessions (herdr) or server sockets (tmux) belong to this host | `["default"]` |
+
+A Watchbill installed inside one machine's seat can manage that seat as its
+cockpit and reach the matching seat on another machine:
+
+```toml
+[[host]]
+name = "sfl-rig2"          # the seat Watchbill runs in
+cockpit = true
+transport = "local"
+
+[[host]]
+name = "sfl-ser6"          # the same kind of seat on another machine
+target = "ser6-lan"
+exec_prefix = ["distrobox", "enter", "sfl", "--"]
+```
+
+Where Watchbill cannot rely on the target looking like the machine it was
+written on, it asks the target: the herdr `session.json` safety copy is found
+from herdr's own reported socket path, the headless start uses `setsid` where
+it exists and a `nohup` background start where it does not (macOS), and the
+agent environment probe reads `/proc`, so on a non-Linux target the roster
+says the environment was not captured instead of claiming it. The SSH
+identity an environment uses to reach another machine is that environment's
+own concern; Watchbill only uses the `target` it is given.
+
 ## Command cheat sheet
 
 | Command | Does | Mutates? |

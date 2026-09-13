@@ -109,6 +109,11 @@ def select(roster: Roster, opts: SecureOptions) -> tuple[list[Occupant], list[Re
     notes: list[str] = []
     if not opts.targets:
         pool = [o for o in roster.occupants if opts.host is None or o.host == opts.host]
+        skipped_ex = [o for o in pool if o.excluded]
+        if skipped_ex:
+            notes.append(f"skipped {len(skipped_ex)} excluded occupant(s): "
+                         + ", ".join(f"{o.human_id} [{o.excluded}]" for o in skipped_ex))
+            pool = [o for o in pool if not o.excluded]
         if not opts.include_local and opts.cockpit_host:
             skipped = [o for o in pool if o.host == opts.cockpit_host]
             if skipped:
@@ -126,6 +131,10 @@ def select(roster: Roster, opts: SecureOptions) -> tuple[list[Occupant], list[Re
             refusals.append(Refusal(f"target {target!r} matches on hosts {sorted(hosts)}; pass --host", override="--host"))
             continue
         for o in hits:
+            if o.excluded:
+                refusals.append(Refusal(f"excluded by hosts.toml ({o.excluded}); lift the exclusion to act on it",
+                                        host=o.host, human_id=o.human_id, slot_id=o.slot_id))
+                continue
             if o.host == opts.cockpit_host and not opts.include_local:
                 refusals.append(Refusal("occupant is on the cockpit host", host=o.host, human_id=o.human_id,
                                         slot_id=o.slot_id, override="--include-local"))
@@ -141,6 +150,9 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
     n = 0
     for o in occupants:
         pid = o.live_ids.pane_id or "?"
+        if o.excluded:
+            plan.notes.append(f"skip excluded {o.human_id} [{o.excluded}]")
+            continue
         if o.host == cockpit_host and self_pane and pid == self_pane:
             plan.notes.append(f"skip self pane {o.human_id} ({pid})")
             continue
@@ -193,6 +205,19 @@ def plan_secure(roster: Roster, fleet: Fleet, opts: SecureOptions) -> Plan:
         occupants = [o for o in roster.occupants if o.host in hosts and (o.host != opts.cockpit_host or opts.include_local)]
     parked = park_steps(plan, fleet, occupants, force=opts.force, self_pane=opts.self_pane, cockpit_host=opts.cockpit_host)
     touched = {(o.host, o.session): o for o in occupants}
+    # An excluded occupant is never taken down as a side effect: closing its
+    # workspace or stopping its session would kill it just the same.
+    if opts.mode == "fold":
+        for o in roster.occupants:
+            if o.excluded and any((o.host, o.session, o.live_ids.workspace_id) == (p.host, p.session, p.live_ids.workspace_id)
+                                  for p in parked):
+                plan.refusals.append(Refusal(f"closing workspace {o.workspace_label} would kill excluded {o.human_id} ({o.excluded})",
+                                             host=o.host, human_id=o.human_id))
+    if opts.mode in ("dismiss", "host"):
+        for o in roster.occupants:
+            if o.excluded and (o.host, o.session) in touched:
+                plan.refusals.append(Refusal(f"stopping session {o.session} would kill excluded {o.human_id} ({o.excluded})",
+                                             host=o.host, human_id=o.human_id))
     if opts.mode == "fold":
         wss = {(o.host, o.session, o.live_ids.workspace_id, o.workspace_label) for o in parked}
         for i, (h, s, wsid, label) in enumerate(sorted(wss, key=lambda x: (x[0], x[1], x[2] or "")), 1):

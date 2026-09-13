@@ -87,6 +87,16 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - Owner added mid-lane: record prior configuration (permission mode, plugins/hooks, …) and resume with the same
   config → agentconfig.py; proven by the argv check above.
 
+## Lane 4 (portability + scope, owner direction 2026-09-13): CLOSED
+- Owner: ser6 is personal work only; do not use its SFL distrobox for now. Watchbill must be deployable in other
+  environments (this machine's SFL seat) and reach another machine's seat.
+- Built: `exclude` (catalogue-only, no override; refuses any window that would stop/close what it runs in),
+  `exec_prefix` (one install runs commands inside an environment, local or over ssh), no home-dir assumption for
+  herdr's session.json (asks herdr), setsid→nohup start fallback, `env_captured` flag.
+- PROVE: tests/test_portability.py; live read-only on ser6: distrobox pane EXCLUDED, park plans personal agents
+  only, restart-harness REFUSED (would kill the excluded pane). nohup start form proven to detach on Linux.
+- Deliberately not done: any probe inside a distrobox (owner deferred it).
+
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.

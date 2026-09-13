@@ -202,13 +202,16 @@ def model(kind: str | None, flags: Sequence[str], disk: dict | None) -> str | No
 
 
 def build(kind: str | None, argv: Sequence[str], env: dict[str, str] | None, secret_env: Sequence[str] | None,
-          disk: dict | None) -> dict:
-    """The record stored on the occupant as ``agent_config``."""
+          disk: dict | None, *, env_captured: bool = True) -> dict:
+    """The record stored on the occupant as ``agent_config``. ``env_captured``
+    is False where the process environment could not be read (the probe uses
+    /proc, so non-Linux targets); then nothing is claimed about the seat env."""
     flags = resume.carried_flags(kind, argv)
     env = env or {}
     return {
         "flags": flags,
         "flags_carried": kind in resume.VALUE_FLAGS,
+        "env_captured": bool(env_captured),
         "permission_mode": permission_mode(kind, flags, disk),
         "model": model(kind, flags, disk),
         "config_dir": config_dir_for(kind, env),

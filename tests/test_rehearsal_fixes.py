@@ -10,9 +10,11 @@ from watchbill.plan_set import SetOptions, plan_set
 # 1. `herdr --session S server` stays in the foreground --------------------
 
 def test_default_herdr_start_detaches():
-    assert hosts.DEFAULT_START.startswith("setsid -f herdr --session {session} server")
     h = hosts.Host(name="x", target="x")
-    assert h.start_cmd("wb") == "setsid -f herdr --session wb server </dev/null >/dev/null 2>&1"
+    cmd = h.start_cmd("wb")
+    # both branches detach with every descriptor redirected: setsid where it exists, nohup elsewhere
+    assert "setsid -f herdr --session wb server </dev/null >/dev/null 2>&1" in cmd
+    assert "(nohup herdr --session wb server </dev/null >/dev/null 2>&1 &)" in cmd
 
 
 # 2. status exits 0 for a stopped session ------------------------------------

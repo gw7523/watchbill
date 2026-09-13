@@ -106,6 +106,10 @@ def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_
     ``ssh -tt <target> -- herdr session attach <S>`` (or the local attach)."""
     cockpit = fleet.cockpit
     be = backend_of(fleet, host.name)
+    attach = host.attach_cmd(session)
+    if host.exec_prefix:
+        import shlex as _shlex
+        attach = f"{_shlex.join(host.exec_prefix)} {attach}"
     if not be.caps.needs_viewport:
         return   # tmux send-keys and cmux send need no attached client
     if cockpit is None or not self_pane or cockpit.mux != "herdr":
@@ -118,7 +122,6 @@ def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_
     mux_step(plan, fleet, f"{tag}att1", cockpit.name, cockpit.sessions[0],
              f"split a viewport pane off the cockpit pane {self_pane} (explicit id, never --current)",
              *cbe.pane_split(self_pane, "down", "~"), creates=key)
-    attach = host.attach_cmd(session)
     if host.transport == "local":
         cmd = ["sh", "-c", attach]
     else:
@@ -245,6 +248,9 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
             pane_tok = f"{{pane:{o.slot_id}}}" if o.slot_id in created or live is None else (
                 (_live_ids(live, o) or o).live_ids.pane_id or f"{{pane:{o.slot_id}}}")
             ph = pane_tok.startswith("{")
+            if o.excluded:
+                plan.notes.append(f"{o.human_id}: excluded ({o.excluded}); not restored")
+                continue
             if o.role == "bridge":
                 plan.notes.append(f"{o.human_id}: bridge (nested herdr) is never relaunched")
                 continue

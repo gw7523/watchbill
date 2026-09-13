@@ -50,6 +50,10 @@ Tell the human when these bite:
 - `reload-config` is live on herdr and tmux, refused on cmux.
 - A tmux occupant whose status is `unknown` needs `--force` to park, exactly
   like a `working` one.
+- An occupant marked `excluded` in the roster is out of scope by the human's
+  own configuration. A plan that would touch it, or stop the session it runs
+  in, is refused with no override flag. Do not look for one: tell the human
+  what is excluded and that lifting it means editing `hosts.toml`.
 
 ## Verbs
 

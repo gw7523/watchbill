@@ -55,6 +55,7 @@ class HostFacts:
     mux: str = "herdr"
     sessions: list[SessionFacts] = field(default_factory=list)
     error: str | None = None
+    exclude: list[str] = field(default_factory=list)
 
 
 # -- live gather (transport-backed, read-only) ----------------------------
@@ -118,13 +119,15 @@ def _gather_agent_config(hs: HostSession, be, pane, facts: SessionFacts, cache: 
     cls = _classify.classify(_pane_dict(pane), pinfo)
     if cls.role != "agent" or not cls.kind:
         return
-    env, secret = {}, []
+    env, secret, captured = {}, [], False
     pid = _agent_pid(cls.kind, pinfo)
     if pid:
         r = hs.shell(agentconfig.environ_probe_argv(pid))
-        if r.ok:
+        if r.ok and r.stdout.strip():
             env, secret = agentconfig.parse_environ(r.stdout)
+            captured = True
     facts.agent_env[pane.pane_id] = (env, secret)
+    facts.__dict__.setdefault("_env_captured", {})[pane.pane_id] = captured
     cwd = _effective_cwd(pane, pinfo)
     cfg = agentconfig.config_dir_for(cls.kind, env)
     key = f"{cls.kind}|{cfg}|{cwd}"
@@ -155,7 +158,7 @@ def idle_after_map(fleet) -> dict[str, float]:
 
 
 def gather_host(host: Host, *, excerpts: bool = False) -> HostFacts:
-    hf = HostFacts(host=host.name, cockpit=host.cockpit, mux=host.mux)
+    hf = HostFacts(host=host.name, cockpit=host.cockpit, mux=host.mux, exclude=list(host.exclude))
     probed = False
     for name in host.sessions:
         hs = make_session(host, name)
@@ -319,7 +322,10 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                                  heuristic=(cls.role == "agent" and caps.agent_status == "heuristic")),
                     excerpt=excerpt if keep_excerpts else None, taken_at=now, mux=hf.mux,
                     agent_config=(agentconfig.build(cls.kind, cls.argv, *sf.agent_env.get(pid, ({}, [])),
-                                                    sf.agent_disk.get(pid)) if cls.role == "agent" else None),
+                                                    sf.agent_disk.get(pid),
+                                                    env_captured=sf.__dict__.get("_env_captured", {}).get(pid, pid in sf.agent_env))
+                                  if cls.role == "agent" else None),
+                    excluded=_excluded(hf.exclude, cls.cmdline, human_id),
                 )
                 roster.occupants.append(occ)
                 if wsid in ws_shapes and ws_shapes[wsid]["cwd"] is None:
@@ -330,6 +336,11 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
             shape.workspaces = list(ws_shapes.values())
             roster.shapes.append(shape)
     return roster
+
+
+def _excluded(globs: list[str], cmdline: str, human_id: str) -> str | None:
+    import fnmatch
+    return next((g for g in globs if fnmatch.fnmatchcase(cmdline, g) or fnmatch.fnmatchcase(human_id, g)), None)
 
 
 def _tasking(tasking: str | None, resume_note: str | None, *, heuristic: bool) -> str | None:

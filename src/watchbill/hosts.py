@@ -36,8 +36,12 @@ MUXES = ("herdr", "tmux", "cmux")
 
 # Verified 2026-09-13: `herdr --session S server` runs in the FOREGROUND.
 # Spawned directly, exec would block until its timeout and then kill the
-# server it had just started, so the default start detaches it.
-DEFAULT_START = "setsid -f herdr --session {session} server </dev/null >/dev/null 2>&1"
+# server it had just started, so the default start detaches it. `setsid` is
+# Linux (util-linux); macOS has none, so fall back to a nohup'd background
+# subshell with every descriptor redirected, which also lets ssh return.
+DEFAULT_START = ("if command -v setsid >/dev/null 2>&1; "
+                 "then setsid -f herdr --session {session} server </dev/null >/dev/null 2>&1; "
+                 "else (nohup herdr --session {session} server </dev/null >/dev/null 2>&1 &); fi")
 DEFAULT_ATTACH = "herdr session attach {session}"
 
 
@@ -55,6 +59,19 @@ class Host:
     remote_verified: bool = False   # set by doctor when cockpit and remote herdr versions match
     mux: str = "herdr"              # herdr | tmux | cmux
     mux_options: dict = field(default_factory=dict)   # e.g. tmux idle_after_s, conf; cmux socket
+    # exec_prefix: run every command for this host *inside an environment* on
+    # the target, e.g. ["distrobox", "enter", "sfl", "--"]. The same Watchbill
+    # then manages a seat on this machine or on another one over ssh.
+    exec_prefix: list[str] = field(default_factory=list)
+    # exclude: globs matched against an occupant's command line and human_id.
+    # A match is catalogued but never parked, relaunched or restored, and a
+    # window that would stop or close what it runs in is refused.
+    exclude: list[str] = field(default_factory=list)
+
+    def excludes(self, cmdline: str, human_id: str) -> str | None:
+        """The first exclude glob that matches, or None."""
+        import fnmatch
+        return next((g for g in self.exclude if fnmatch.fnmatchcase(cmdline, g) or fnmatch.fnmatchcase(human_id, g)), None)
 
     def start_cmd(self, session: str) -> str:
         return self.start.format(session=session)
@@ -102,12 +119,21 @@ def parse(text: str, *, hostname: str | None = None) -> Fleet:
             raise ValueError(f"host {h['name']}: unknown mux {mux!r}")
         if mux != "herdr" and transport == "herdr_remote":
             raise ValueError(f"host {h['name']}: herdr_remote transport only reaches a herdr mux")
+        exec_prefix = h.get("exec_prefix", [])
+        if not isinstance(exec_prefix, list) or not all(isinstance(t, str) for t in exec_prefix):
+            raise ValueError(f"host {h['name']}: exec_prefix must be a list of strings")
+        if exec_prefix and transport == "herdr_remote":
+            raise ValueError(f"host {h['name']}: herdr_remote cannot run inside an exec_prefix; use ssh_cli")
+        exclude = h.get("exclude", [])
+        if not isinstance(exclude, list) or not all(isinstance(t, str) for t in exclude):
+            raise ValueError(f"host {h['name']}: exclude must be a list of glob strings")
         hosts.append(Host(
             name=h["name"], target=h.get("target"), transport=transport,
             sessions=list(h.get("sessions", ["default"])), cockpit=bool(h.get("cockpit", False)),
             start=h.get("start", DEFAULT_START), attach=h.get("attach", DEFAULT_ATTACH),
             herdr_bin=h.get("herdr_bin", "herdr"), connect_timeout=int(h.get("connect_timeout", 5)),
             mux=mux, mux_options=dict(h.get("mux_options", {})),
+            exec_prefix=list(exec_prefix), exclude=list(exclude),
         ))
     if hostname and not any(x.cockpit for x in hosts):
         # If the running machine is listed by name, it is the cockpit.

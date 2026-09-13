@@ -71,6 +71,8 @@ class Occupant:
     # fingerprint (settings/plugins/hooks/MCP/trust/version/integration).
     # See agentconfig.py. Additive, schema 1.
     agent_config: dict | None = None
+    # Matched a host `exclude` glob (the glob itself). Catalogued, never touched.
+    excluded: str | None = None
 
     @property
     def effective_cwd(self) -> str:

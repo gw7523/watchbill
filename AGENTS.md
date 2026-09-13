@@ -85,6 +85,14 @@ twelve real bugs that 150 unit tests had not; see `.graph-loop/state.md`.
   `herdr --remote` as a default, or `agent prompt` to a blocked agent.
 - Never run `omarchy-update` without `-y` from a pane; it blocks on a confirm
   dialog. Never reboot the cockpit.
+- Never assume the target looks like this machine. No home-directory paths
+  for another tool's files (ask the tool: herdr reports its socket), no
+  Linux-only command without a fallback or a fail-soft (setsid → nohup,
+  /proc → "not captured"). Watchbill is deployed inside seats such as a
+  distrobox via `exec_prefix`, not by special-casing them.
+- Excluded occupants (`exclude` in hosts.toml) are the owner's statement that
+  something is out of scope. There is no flag that overrides an exclusion;
+  the owner lifts it by editing hosts.toml.
 - Never let a driving agent's session identity reach what Watchbill starts.
   A mux server started from inside a Claude session makes every agent in it a
   non-resumable child session. `transport.run_argv` scrubs this; do not add a

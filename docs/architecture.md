@@ -338,6 +338,8 @@ empty one.
 | `hermes --resume <id>` | as contract | fresh start + prompt |
 | `[[startup]]` manifest table | any `startup` key ⇒ hooks | operator `--startup-hooks` |
 | agent name in `agent list` | `pane.name` / `pane.agent_name` if present | `p<n>` label; `agent start` name derived from kind + slot suffix |
+| `exec_prefix` into a distrobox seat (`distrobox enter sfl --`) | argv built and unit-tested; **deliberately not probed** (owner: leave the SFL seat alone for now) | when probed: that a server started with `setsid -f` inside `distrobox enter` survives the enter returning, and that the SSH identity inside the seat reaches the other machine |
+| `nohup` start fallback on macOS | the form was proven to detach and return on Linux; not run on a Mac | `start =` per host in hosts.toml |
 | `splits` tree format in `layout.export` | not consumed; each extra pane splits off its tab's first pane by rect | capture one multi-pane layout live, then rebuild from the tree |
 | `send-keys` name for Enter | `"enter"` (flagged unverified) | `pane send-text` with a trailing newline |
 | `agent wait` target after `/exit` | pane id | `pane wait-output`, or poll `agent list` until the pane is gone |

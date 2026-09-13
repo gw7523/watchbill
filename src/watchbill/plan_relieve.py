@@ -21,6 +21,7 @@ handoff is to keep the PTYs, so only the action's ``before_stop`` commands
 """
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass, field
 
 from . import actions as _actions
@@ -55,8 +56,14 @@ class RelieveOptions:
     run_id: str = "run"
 
 
-def session_json_path(session: str) -> str:
-    return "~/.config/herdr/session.json" if session == "default" else f"~/.config/herdr/sessions/{session}/session.json"
+def keep_session_json_body(session: str, run_id: str) -> str:
+    """#3415 safety copy of the session's persisted layout, located by asking
+    the target's own herdr where its socket is (session.json sits beside it).
+    No home-directory assumption, so it works inside another environment and
+    for named sessions alike; if herdr cannot say, it does nothing."""
+    status = shlex.join(["herdr", "--session", session, "status", "server", "--json"])
+    return (f"s=$({status} 2>/dev/null | sed -n 's/.*\"socket\":\"\\([^\"]*\\)\".*/\\1/p'); "
+            f"[ -n \"$s\" ] && d=$(dirname \"$s\") && cp -p \"$d/session.json\" \"$d/session.json.watchbill-{run_id}\" 2>/dev/null; true")
 
 
 def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
@@ -128,17 +135,24 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         # 2. park (never in live mode: handoff keeps the PTYs)
         kinds = action.park_kinds_for(host, probe)
         pool = [] if live else [o for o in roster.on_host(hn) if o.role in blast.park_roles
-                                and (kinds is None or o.kind in kinds)]
+                                and (kinds is None or o.kind in kinds) and not o.excluded]
         parked = park_steps(plan, fleet, pool, force=opts.force, self_pane=opts.self_pane,
                             cockpit_host=opts.cockpit_host, prefix=f"{tag}park")
         sessions = sorted({o.session for o in roster.on_host(hn)} or set(host.sessions))
         be = backend_of(fleet, hn)
         stop = blast.needs_session_stop and not live
+        if stop:
+            blocked_by = [o for o in roster.on_host(hn) if o.excluded and o.session in sessions]
+            if blocked_by:
+                for o in blocked_by:
+                    plan.refusals.append(Refusal(
+                        f"{opts.action} stops session {o.session}, which would kill excluded {o.human_id} ({o.excluded})",
+                        host=hn, human_id=o.human_id))
+                continue
         # 3. copy session.json aside (herdr persists; tmux does not, cmux saves on quit)
         if be.name == "herdr":
             for s in sessions:
-                src = session_json_path(s)
-                argv = ["sh", "-c", f"cp -p {src} {src}.watchbill-{opts.run_id} 2>/dev/null || true"]
+                argv = ["sh", "-c", keep_session_json_body(s, opts.run_id)]
                 plan.add(Step(id=f"{tag}keep.{s}", kind=StepKind.SHELL, host=hn, session=s, argv=tuple(argv), raw=tuple(argv),
                               description="#3415: copy session.json aside before any stop", mutating=True, via="shell"))
         # 4/5. action commands that need no running server go first, then the

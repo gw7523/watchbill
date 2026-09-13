@@ -32,13 +32,13 @@ class SshCliSession:
         self.backend = backend_for(host)
 
     def mux_argv(self, *args: str) -> list[str]:
-        remote = [*mux_prefix(self.host, self.session), *args]
+        remote = [*self.host.exec_prefix, *mux_prefix(self.host, self.session), *args]
         return [*ssh_prefix(self.host), shlex.join(remote)]
 
     herdr_argv = mux_argv
 
     def shell_argv(self, argv: Sequence[str]) -> list[str]:
-        return [*ssh_prefix(self.host), shlex.join(list(argv))]
+        return [*ssh_prefix(self.host), shlex.join([*self.host.exec_prefix, *argv])]
 
     def mux(self, *args: str, timeout: float = 30.0) -> CmdResult:
         # No env scrubbing: sshd starts a fresh login shell on the far side.
