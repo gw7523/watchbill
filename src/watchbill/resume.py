@@ -17,6 +17,7 @@ class ResumeSpec:
     fallback: tuple[str, ...] | None   # continue-most-recent variant, if any
     verify: str
     verified: bool
+    flags_at: int = 1                  # where carried flags go: after the executable, or after a subcommand
 
 
 RESUME: dict[str, ResumeSpec] = {
@@ -25,7 +26,7 @@ RESUME: dict[str, ResumeSpec] = {
     "grok": ResumeSpec("grok", ("grok", "--resume", "{id}"), ("grok", "--continue"),
                        "grok 1.0.25 --help: -r, --resume [<SESSION_ID_OR_TITLE>]", True),
     "codex": ResumeSpec("codex", ("codex", "resume", "{id}"), ("codex", "resume", "--last"),
-                        "codex-cli 0.153.4 resume --help: codex resume [SESSION_ID]", True),
+                        "codex-cli 0.153.4 resume --help: codex resume [OPTIONS] [SESSION_ID]", True, flags_at=2),
     "cursor": ResumeSpec("cursor", ("cursor-agent", "--resume", "{id}"), ("cursor-agent", "--continue"),
                          "cursor-agent 2026.09.10 --help: --resume [chatId]", True),
     "opencode": ResumeSpec("opencode", ("opencode", "--session", "{id}"), ("opencode", "--continue"),
@@ -53,11 +54,28 @@ VALUE_FLAGS: dict[str, frozenset[str]] = {
         "--json-schema", "--leader-socket", "-m", "--model", "--max-turns", "--output-format",
         "--permission-mode", "--reasoning-effort", "--rules", "--sandbox", "--system-prompt-override",
         "--tools", "--worktree-ref"}),
+    # codex-cli 0.153.4 (`codex --help` and `codex resume --help`, same option set)
+    "codex": frozenset({
+        "-c", "--config", "--enable", "--disable", "--remote", "--remote-auth-token-env", "-m", "--model",
+        "--local-provider", "-p", "--profile", "-s", "--sandbox", "-C", "--cd", "--add-dir", "-a",
+        "--ask-for-approval"}),
+    # cursor-agent 2026.09.10
+    "cursor": frozenset({
+        "--output-format", "--mode", "--model", "--sandbox", "--workspace", "--add-dir", "--plugin-dir",
+        "--worktree-base", "-e", "--endpoint"}),
+    # gemini 0.59.0 (yargs [string]/[array] options)
+    "gemini": frozenset({
+        "-m", "--model", "-w", "--worktree", "--approval-mode", "--policy", "--admin-policy",
+        "--allowed-mcp-server-names", "--allowed-tools", "-e", "--extensions", "--include-directories",
+        "-o", "--output-format"}),
+    # opencode 1.18.29
+    "opencode": frozenset({"--log-level", "--port", "--hostname", "--cors", "-m", "--model", "--agent", "--replay-limit"}),
 }
 # Flags whose value is optional ("[value]" in --help) and which are kept.
 OPTIONAL_VALUE_FLAGS: dict[str, frozenset[str]] = {
     "claude": frozenset({"-d", "--debug", "-w", "--worktree", "--prompt-suggestions", "--remote-control"}),
     "grok": frozenset({"-w", "--worktree"}),
+    "cursor": frozenset({"-w", "--worktree"}),
 }
 # Flags that must NOT survive into a resume: an earlier resume/continue
 # selection, a one-shot prompt, or a new session id (which would fork the
@@ -69,7 +87,40 @@ DROP_FLAGS: dict[str, dict[str, str]] = {
                "--fork-session": "none"},
     "grok": {"-r": "opt", "--resume": "opt", "-c": "none", "--continue": "none", "-s": "req",
              "--session-id": "req", "-p": "req", "--single": "req", "--prompt-file": "req", "--prompt-json": "req"},
+    "codex": {"-i": "req", "--image": "req", "--last": "none", "--all": "none",
+              "--remote-auth-token-env": "req"},
+    "cursor": {"--resume": "opt", "--continue": "none", "-p": "none", "--print": "none",
+               "--api-key": "req", "-H": "req", "--header": "req"},
+    "gemini": {"-r": "req", "--resume": "req", "-p": "req", "--prompt": "req", "-i": "req",
+               "--prompt-interactive": "req", "--session-file": "req", "--session-id": "req", "--delete-session": "req"},
+    "opencode": {"-s": "req", "--session": "req", "-c": "none", "--continue": "none", "--prompt": "req", "--fork": "none"},
 }
+
+# Flags that carry a credential. Never carried into a resume, and redacted in
+# any command line Watchbill records (a roster is a file on disk).
+SECRET_FLAGS = frozenset({"--api-key", "-H", "--header", "--remote-auth-token-env", "--token", "--auth-token",
+                          "--password", "--secret"})
+
+
+def redact_argv(argv: Sequence[str]) -> list[str]:
+    """Replace the value of any credential flag with <redacted>, for recording."""
+    out: list[str] = []
+    skip_next = False
+    for t in argv:
+        if skip_next:
+            out.append("<redacted>")
+            skip_next = False
+            continue
+        name, eq, _ = t.partition("=")
+        if name in SECRET_FLAGS or any(seg in ("key", "token", "secret", "password") for seg in name.lstrip("-").split("-")):
+            if eq:
+                out.append(f"{name}=<redacted>")
+            else:
+                out.append(t)
+                skip_next = True
+            continue
+        out.append(t)
+    return out
 
 
 def carried_flags(kind: str | None, original_argv: Sequence[str] | None) -> list[str]:
@@ -103,7 +154,7 @@ def carried_flags(kind: str | None, original_argv: Sequence[str] | None) -> list
             j += 1                                  # positional: an initial prompt, never replayed
             continue
         name, eq, _ = t.partition("=")
-        drop = DROP_FLAGS.get(kind, {}).get(name)
+        drop = DROP_FLAGS.get(kind, {}).get(name) or ("req" if name in SECRET_FLAGS else None)
         j += 1
         if drop:
             if not eq and drop == "req" and j < len(toks):
@@ -126,7 +177,8 @@ def resume_argv(kind: str | None, session_id: str | None, original_argv: Sequenc
     if not kind or kind not in RESUME or not session_id:
         return None
     base = [tok.replace("{id}", session_id) for tok in RESUME[kind].argv]
-    return [base[0], *carried_flags(kind, original_argv), *base[1:]]
+    at = RESUME[kind].flags_at
+    return [*base[:at], *carried_flags(kind, original_argv), *base[at:]]
 
 
 def continue_argv(kind: str | None, original_argv: Sequence[str] | None = None) -> list[str] | None:
@@ -136,7 +188,8 @@ def continue_argv(kind: str | None, original_argv: Sequence[str] | None = None) 
     if not kind or kind not in RESUME or not RESUME[kind].fallback:
         return None
     base = list(RESUME[kind].fallback)
-    return [base[0], *carried_flags(kind, original_argv), *base[1:]]
+    at = RESUME[kind].flags_at
+    return [*base[:at], *carried_flags(kind, original_argv), *base[at:]]
 
 
 def is_verified(kind: str | None) -> bool:

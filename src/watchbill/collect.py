@@ -341,7 +341,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                     slot_id=slot_id, human_id=human_id, host=hf.host, session=sf.name,
                     workspace_label=ws_label, tab_label=tab_label, pane_label=pane_label,
                     role=cls.role, kind=cls.kind, agent_status=status,
-                    argv=list(cls.argv), cmdline=cls.cmdline, cwd=cwd, foreground_cwd=fg_cwd,
+                    argv=resume.redact_argv(cls.argv), cmdline=" ".join(resume.redact_argv(cls.argv)), cwd=cwd, foreground_cwd=fg_cwd,
                     agent_session=sess, resume_argv=resume_argv,
                     resume_prompt=rp, allow_relaunch=_classify.allow_relaunch(cls.role, cls.cmdline, allowlist),
                     live_ids=LiveIds(workspace_id=wsid, tab_id=tid, pane_id=pid, terminal_id=pane.terminal_id),

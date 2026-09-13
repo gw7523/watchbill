@@ -51,9 +51,21 @@ def test_resume_finds_the_agent_behind_an_interpreter():
     assert resume.resume_argv("grok", "g1", grok) == ["grok", "--permission-mode=bypassPermissions", "--resume", "g1"]
 
 
-def test_kinds_without_a_verified_flag_table_resume_bare():
-    assert resume.resume_argv("codex", "c1", ["codex", "--full-auto"]) == ["codex", "resume", "c1"]
-    assert resume.carried_flags("opencode", ["opencode", "--model", "x"]) == []
+def test_every_supported_kind_now_carries_its_flags():
+    # codex flags go after the `resume` subcommand, which takes the same options
+    assert resume.resume_argv("codex", "c1", ["codex", "--oss", "--local-provider", "ollama", "-m", "qwen", "fix it"]) == \
+        ["codex", "resume", "--oss", "--local-provider", "ollama", "-m", "qwen", "c1"]
+    assert resume.resume_argv("opencode", "o1", ["opencode", "-m", "ollama/qwen", "--continue"]) == ["opencode", "-m", "ollama/qwen", "--session", "o1"]
+    assert resume.resume_argv("gemini", "g1", ["gemini", "-m", "flash", "--yolo", "-p", "one shot"]) == ["gemini", "-m", "flash", "--yolo", "--resume", "g1"]
+    assert resume.resume_argv("cursor", "k1", ["cursor-agent", "--model", "x", "--force"]) == ["cursor-agent", "--model", "x", "--force", "--resume", "k1"]
+
+
+def test_credentials_are_never_carried_and_are_redacted_when_recorded():
+    argv = ["cursor-agent", "--api-key", "sk-live-123", "--model", "x", "-H", "Authorization: Bearer abc"]
+    assert "sk-live-123" not in resume.resume_argv("cursor", "k1", argv) and "--api-key" not in resume.resume_argv("cursor", "k1", argv)
+    red = resume.redact_argv(argv)
+    assert "sk-live-123" not in red and "Authorization: Bearer abc" not in red and red.count("<redacted>") == 2
+    assert resume.redact_argv(["x", "--openai-api-key=abc"]) == ["x", "--openai-api-key=<redacted>"]
 
 
 # 4. exec honours each step's own deadline -----------------------------------
