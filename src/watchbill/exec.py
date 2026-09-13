@@ -57,6 +57,8 @@ class Executor:
         # MANUAL steps: the operator does something by hand (quit/relaunch cmux). `confirm(text)`
         # returns True when they say so; default reads a line from stdin, non-interactive → False.
         self.confirm = confirm or _stdin_confirm
+        self._restored: dict[tuple[str, str], object] = {}   # (host, session) → MuxSnapshot, read once
+        self._claimed: set[str] = set()                        # restored pane ids already taken
         self._sessions: dict[tuple[str, str], HostSession] = {}
 
     # -- plumbing ------------------------------------------------------
@@ -86,6 +88,49 @@ class Executor:
         if ids.get("workspace_id"):
             pane_map[f"ws:{step.creates}"] = ids["workspace_id"]
 
+    def _try_reuse(self, step: Step, hs: HostSession, pane_map: dict[str, str]) -> bool:
+        """Take a pane the mux already restored instead of creating a duplicate.
+
+        Herdr restores the layout from session.json when a stopped session
+        starts again (verified 2026-09-13: the restarted server already had
+        workspace `rehearse`, and creating it again produced a second one).
+        The restored layout is read once per host/session, after the server
+        is up, and matched by workspace label, tab label and pane order. A
+        restored pane is claimed at most once."""
+        if not step.reuse or not step.creates:
+            return False
+        key = (step.host, step.session or "default")
+        if key not in self._restored:
+            be = hs.backend
+            outs = []
+            for argv in be.snapshot_argvs():
+                r = hs.mux(*argv)
+                if not r.ok:
+                    self._restored[key] = None
+                    return False
+                outs.append(r.stdout)
+            try:
+                self._restored[key] = be.parse_snapshot(outs)
+            except Exception:
+                self._restored[key] = None
+        snap = self._restored[key]
+        if snap is None:
+            return False
+        ws = next((w for w in snap.workspaces if w.label == step.reuse.get("workspace")), None)
+        if ws is None:
+            return False
+        tab = next((t for t in snap.tabs if t.workspace_id == ws.workspace_id and t.label == step.reuse.get("tab")), None)
+        if tab is None:
+            return False
+        panes = sorted((p for p in snap.panes if p.tab_id == tab.tab_id), key=lambda p: p.index)
+        i = int(step.reuse.get("index", 0))
+        if i >= len(panes) or panes[i].pane_id in self._claimed:
+            return False
+        self._claimed.add(panes[i].pane_id)
+        pane_map[step.creates] = panes[i].pane_id
+        pane_map[f"ws:{step.creates}"] = ws.workspace_id
+        return True
+
     def _run_check(self, step: Step, plan: Plan) -> str | None:
         """Compare an agent's live on-disk configuration with what was recorded
         when it was parked. Changes are reported; changes that would make the
@@ -107,6 +152,21 @@ class Executor:
             self.journal.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status="ok",
                                 detail="config drift: " + "; ".join(notes))
         return "; ".join(hard) if hard else None
+
+    @staticmethod
+    def _pane_tail(hs: HostSession, raw: tuple[str, ...]) -> str:
+        """Why did the agent not come up? The last lines of its pane usually say
+        (`No conversation found`, a trust dialog, a missing binary)."""
+        r = list(raw)
+        if "--pane" not in r:
+            return ""
+        pane = r[r.index("--pane") + 1]
+        argv = hs.backend.excerpt_argv(pane, 8)
+        if not argv:
+            return ""
+        got = hs.mux(*argv)
+        lines = [ln.strip() for ln in (got.stdout or "").splitlines() if ln.strip()][-4:]
+        return (" | pane: " + " / ".join(lines)) if lines else ""
 
     def _check_precondition(self, step: Step, hs: HostSession, raw: tuple[str, ...]) -> str | None:
         """Pitfall 12: never prompt a blocked agent. Herdr rejects it too, but
@@ -221,6 +281,10 @@ class Executor:
             via = {StepKind.HERDR: "mux", StepKind.WAIT: "mux", StepKind.SHELL: "shell", StepKind.LOCAL: "local"}.get(step.kind, "none")
         if via in ("herdr", "mux"):
             hs = self._hs(step.host, step.session)
+            if step.reuse and self._try_reuse(step, hs, result.pane_map):
+                self.out(f"  reuse {step.host}: {step.reuse['workspace']}/{step.reuse['tab']}#{step.reuse['index']} "
+                         f"→ {result.pane_map[step.creates]} (restored by {hs.backend.name})")
+                return None
             if step.precondition:
                 err = self._check_precondition(step, hs, raw)
                 if err:
@@ -228,7 +292,10 @@ class Executor:
             res = hs.mux(*raw, timeout=step_timeout(raw, 30.0))
             self._record_created(step, res, result.pane_map, hs)
             if not res.ok:
-                return res.stderr.strip() or res.stdout.strip() or f"exit {res.returncode}"
+                err = res.stderr.strip() or res.stdout.strip() or f"exit {res.returncode}"
+                if step.verb == ("agent", "start"):
+                    err += self._pane_tail(hs, raw)
+                return err
             if _is_prompt(hs.backend.name, step):
                 return self._post_prompt_check(step, hs)
             return None

@@ -159,6 +159,12 @@ class Step:
     # expect: what a CHECK step compares the live probe against (the occupant's
     # recorded on-disk agent configuration).
     expect: dict | None = None
+    # reuse: for a create step (workspace/tab/split), where the pane would sit
+    # in the recorded layout — {"workspace": label, "tab": label, "index": n}.
+    # A mux that restores its own layout on restart (herdr does, from
+    # session.json) may already have that pane; exec takes it instead of
+    # creating a duplicate.
+    reuse: dict | None = None
 
     @property
     def verb(self) -> tuple[str, ...]:

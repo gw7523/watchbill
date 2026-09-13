@@ -15,16 +15,29 @@ def _xdg(var: str, default: str) -> Path:
     return Path(os.environ.get(var) or Path.home() / default)
 
 
+def _home_override(sub: str) -> Path | None:
+    """``WATCHBILL_HOME=/some/dir`` puts Watchbill's own config, data and state
+    under that directory and nowhere else.
+
+    Use this — not ``XDG_CONFIG_HOME`` — to isolate a run (a rehearsal fleet,
+    a test). The XDG variables are inherited by every mux Watchbill starts,
+    and herdr keeps its session sockets under ``$XDG_CONFIG_HOME/herdr``:
+    redirecting XDG makes Watchbill look for servers that are not there.
+    """
+    home = os.environ.get("WATCHBILL_HOME")
+    return Path(home) / sub if home else None
+
+
 def config_dir() -> Path:
-    return _xdg("XDG_CONFIG_HOME", ".config") / "watchbill"
+    return _home_override("config") or _xdg("XDG_CONFIG_HOME", ".config") / "watchbill"
 
 
 def data_dir() -> Path:
-    return _xdg("XDG_DATA_HOME", ".local/share") / "watchbill"
+    return _home_override("data") or _xdg("XDG_DATA_HOME", ".local/share") / "watchbill"
 
 
 def state_dir() -> Path:
-    return _xdg("XDG_STATE_HOME", ".local/state") / "watchbill"
+    return _home_override("state") or _xdg("XDG_STATE_HOME", ".local/state") / "watchbill"
 
 
 def hosts_file() -> Path:

@@ -65,6 +65,19 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   4. exec used a fixed 30s subprocess timeout for steps whose own --timeout is 90s
   5. the `reach` step used the mux status verb, which fails on a dead tmux server before `start` runs
 
+- Attempt 1 (2026-09-13) → FAIL at resume, 16 steps ran first (park, stop, detached start, up-wait, workspace, config check).
+  Findings, each now fixed before attempt 2:
+  6. `herdr agent start` PREPENDS the canonical executable: args only after `--` (was: resume + the word "claude" sent as a prompt)
+  7. isolating with XDG_CONFIG_HOME redirects herdr's own socket dir → WATCHBILL_HOME override
+  8. ROOT CAUSE of the failed resume: a server started from inside a Claude session inherits CLAUDECODE /
+     CLAUDE_CODE_CHILD_SESSION / CLAUDE_CODE_SESSION_ID; agents in it become non-persisting child sessions
+     (no transcript → `No conversation found with session ID`). Core use case (an agent drives Watchbill) → the
+     local transport now scrubs agent-session env from everything it spawns.
+  9. herdr restores the workspace layout from session.json on restart; the planner assumed an empty server and
+     created a duplicate workspace → exec reconciles creates against the restarted server by label
+  10. agent start had no deadline of its own and raced exec's 30s timeout; a failed start now records the pane tail
+  Classification: attempt 1 was partly INSTRUMENT (the harness polluted the subject) and partly real product bugs.
+
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.

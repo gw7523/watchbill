@@ -67,6 +67,22 @@ class HostSession(Protocol):
     def reachable(self) -> bool: ...
 
 
+# Environment that identifies the *process driving Watchbill* — usually a coding
+# agent, since the skill has an agent run it. Anything Watchbill starts locally
+# (a headless herdr server, the first tmux command, which starts the tmux
+# server) passes its environment on to every agent later started inside it.
+# Verified 2026-09-13: a Claude resumed inside a server that inherited
+# CLAUDE_CODE_CHILD_SESSION ran as a child session, wrote no transcript, and
+# `claude --resume <id>` then answered "No conversation found".
+AGENT_SESSION_EXACT = ("CLAUDECODE", "CLAUDE_PID", "CLAUDE_EFFORT",
+                       "HERDR_ENV", "HERDR_PANE_ID", "HERDR_TAB_ID", "HERDR_WORKSPACE_ID")
+AGENT_SESSION_PREFIXES = ("CLAUDE_CODE_", "CLAUDE_PLUGIN_", "GROK_CC_")
+
+
+def agent_session_env(environ: dict[str, str]) -> list[str]:
+    return [k for k in environ if k in AGENT_SESSION_EXACT or k.startswith(AGENT_SESSION_PREFIXES)]
+
+
 TIMEOUT_RC = 124      # conventional "timed out"
 NOTFOUND_RC = 127     # conventional "command not found"
 
@@ -83,7 +99,7 @@ def run_argv(argv: Sequence[str], *, timeout: float, scrub: Sequence[str] = (), 
     """
     argv = [str(a) for a in argv]
     env = dict(os.environ)
-    for k in scrub:
+    for k in (*scrub, *agent_session_env(env)):
         env.pop(k, None)
     try:
         cp = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd, check=False)

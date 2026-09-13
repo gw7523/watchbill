@@ -202,8 +202,9 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                                    if be.name == "tmux" else
                                    be.workspace_create(ws["label"], first.get("cwd") or ws.get("cwd") or "~", env=first_env))
                         mux_step(plan, fleet, f"{p}ws.{ws['label']}", host_name, session,
-                                 f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
-                                 *ws_argv, creates=first["slot_id"], unverified=be.caps.docs_only)
+                                 f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]}; reused if restored)",
+                                 *ws_argv, creates=first["slot_id"], unverified=be.caps.docs_only,
+                                 reuse={"workspace": ws["label"], "tab": t["label"], "index": 0})
                         if be.name == "cmux":
                             plan.add(Step(id=f"{p}ws.{ws['label']}.note", kind=StepKind.NOTE, host=host_name, session=session,
                                           mux="cmux", description=f"cmux `new-workspace` takes no label or cwd, so "
@@ -216,8 +217,9 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                             plan.notes.append(f"{host_name}: {be.name} has no tab create; panes of tab {t['label']} split off the first pane")
                             continue
                         mux_step(plan, fleet, f"{p}tab.{ws['label']}.{t['label']}", host_name, session,
-                                 f"create tab {t['label']} in {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
-                                 *tab_argv, placeholders=True, creates=first["slot_id"])
+                                 f"create tab {t['label']} in {ws['label']} (root pane → slot {first['slot_id'][-6:]}; reused if restored)",
+                                 *tab_argv, placeholders=True, creates=first["slot_id"],
+                                 reuse={"workspace": ws["label"], "tab": t["label"], "index": 0})
                         created.add(first["slot_id"])
                     # herdr: the `splits` tree format is UNVERIFIED-0.8.2, so each extra pane splits
                     # off the tab's first pane by rect position. tmux: the exact layout string is
@@ -229,7 +231,8 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                                  f"split pane for {pn['pane_label']} ({direction})",
                                  *be.pane_split(f"{{pane:{first['slot_id']}}}", direction, pn.get("cwd") or "~",
                                                 env=_slot_env(roster, pn["slot_id"])),
-                                 placeholders=True, creates=pn["slot_id"], unverified=be.caps.docs_only)
+                                 placeholders=True, creates=pn["slot_id"], unverified=be.caps.docs_only,
+                                 reuse={"workspace": ws["label"], "tab": t["label"], "index": panes.index(pn)})
                         created.add(pn["slot_id"])
                     restored_all = len(panes) == len(t["panes"])
                     if len(panes) > 1 and restored_all and t.get("layout") and be.caps.layout_reapply and not ws_live:

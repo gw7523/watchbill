@@ -108,7 +108,9 @@ class HerdrBackend:
         --model haiku`). So only the arguments go after `--`. Passing the full
         `claude --resume <id>` would resume and then send the word "claude"
         to the agent as a prompt."""
-        argv = ["agent", "start", name, "--kind", kind, "--pane", pane_ref]
+        # An explicit deadline, shorter than exec's (which derives from it), so a
+        # stuck start comes back as Herdr's own error, not a killed subprocess.
+        argv = ["agent", "start", name, "--kind", kind, "--pane", pane_ref, "--timeout", "60000"]
         args = list(resume_argv[1:]) if resume_argv else list(flags or [])
         if args:
             argv += ["--", *args]

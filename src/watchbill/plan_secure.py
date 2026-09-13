@@ -67,7 +67,8 @@ def backend_of(fleet: Fleet, host_name: str):
 def mux_step(plan: Plan, fleet: Fleet, sid: str, occ_or_host, session: str, description: str, *args: str,
              kind: StepKind = StepKind.HERDR, slot_id: str | None = None, human_id: str | None = None,
              precondition: str | None = None, placeholders: bool = False, creates: str | None = None,
-             unverified: bool = False, planned_stop: bool = False, agent_kind: str | None = None) -> Step:
+             unverified: bool = False, planned_stop: bool = False, agent_kind: str | None = None,
+             reuse: dict | None = None) -> Step:
     """Append one step whose ``raw`` is a mux CLI argv (after the backend
     prefix). Backends may hand back two markers instead of a real argv:
     ``__poll__`` (tmux: a remote shell wait loop) and ``__manual__``
@@ -94,7 +95,7 @@ def mux_step(plan: Plan, fleet: Fleet, sid: str, occ_or_host, session: str, desc
     step = Step(id=sid, kind=kind, host=host_name, session=session, description=description, argv=tuple(argv),
                 mutating=be.is_mutating(raw), slot_id=slot_id, human_id=human_id, precondition=precondition,
                 placeholders=placeholders, raw=raw, creates=creates, via="mux", mux=host.mux,
-                planned_stop=planned_stop, agent_kind=agent_kind,
+                planned_stop=planned_stop, agent_kind=agent_kind, reuse=reuse,
                 unverified=unverified or be.caps.docs_only)   # docs-only backend: every verb is UNVERIFIED-LIVE
     return plan.add(step)
 
