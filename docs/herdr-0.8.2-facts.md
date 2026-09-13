@@ -120,9 +120,10 @@ cycled twice. Every agent came back on its own session id with its own flags.
 | Grok's `/exit` exits the TUI (documented in grok's README, now verified live) | Grok park is verified |
 | Grok reports `agent_session` only after its first prompt | an idle Grok that was never prompted is `unref` and resumes fresh |
 | a Grok just resumed with a long history can report idle while still redrawing, and drop a submitted prompt (`agent_prompt_stalled`) | exec settles and retries a stalled prompt once |
-| on Claude 2.1.252, `--dangerously-skip-permissions` in a folder with an explicit `hasTrustDialogAccepted: false` starts without the trust dialog (rig2's dialog appeared for a folder with no entry at all) | recorded `trusted` is informative, not predictive; only a change from true to false stops a host |
+| Claude's trust dialog appears for a folder with **no** `projects` entry, even with `--dangerously-skip-permissions` (rig2 2.1.267, ser6 2.1.252 in `/tmp/wb-hooktest`); a folder with an explicit `hasTrustDialogAccepted: false` starts without it (ser6 `omarchy-plugins`) | recorded `trusted` is informative, not predictive; only a change from true to false stops a host |
 | a herdr server started over ssh inherits `SSH_CONNECTION` and lacks the desktop session (`WAYLAND_DISPLAY`, `DISPLAY`, `XDG_SESSION_TYPE=wayland`) | server env is recorded and restored; the live systemd user environment is authoritative; SSH_* is dropped |
 | the server is the parent process of every pane shell | how Watchbill finds and reads a herdr server's environment |
+| a server started by a correct systemd user unit (`personal-config` `tools/linux/herdr-autostart`) gets the desktop session from the unit itself; Watchbill's `start = "systemctl --user start herdr.service"` hands the server back to systemd so it survives a reboot (ser6, 2026-09-13) | prefer a host's own unit as `start` where one exists |
 | a machine can run a second, independent herdr for a seat (ser6's SFL distrobox runs its own `~/Work/sfl/.home/.local/bin/herdr server`) | stopping one herdr session never touches the other; name hosts by the herdr they talk to |
 
 ## UNVERIFIED-0.8.2 list (probe before MVP)

@@ -133,6 +133,17 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - Follow-ups: tmux server start does not apply the session prelude yet; the #2064 viewport step never proved
   necessary (claude + grok, local + ssh) → candidate to make opt-in.
 
+## Lane 6 (owner: fix ser6's two issues, re-test, then a tmux example): IN PROGRESS
+- ser6 token-lean: cloned gw7523/agent-skills on ser6 and ran its installer (--check reviewed first): tl-* relinked,
+  skills taken over from personal-config marks as intended. No repo edited (other agents active in both repos on rig2).
+- ser6 herdr.service: stopped the 203/EXEC loop (245,396 restarts), ran personal-config's own
+  tools/linux/herdr-autostart/install.sh (unit == repo, enabled, live server left alone).
+- Re-test: ser6 default with a haiku test agent in /tmp/wb-hooktest (trust accepted for that tmp folder),
+  start = systemctl --user start herdr.service. 39 steps, 0 failed. PROVE: 3 real agents same ids + flags; test agent
+  same id + flags, codeword recalled, no hook error; herdr.service active, MainPID /usr/bin/herdr server,
+  WAYLAND_DISPLAY=wayland-1, no SSH_*. Test agent exited and its workspace closed afterwards.
+- Next: tmux example (rig2 local, test agents in /tmp).
+
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.
