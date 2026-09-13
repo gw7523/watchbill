@@ -1,4 +1,5 @@
 """tmux and cmux backends, capability gating, and agent-status heuristics."""
+import re
 from pathlib import Path
 
 import pytest
@@ -214,11 +215,14 @@ def test_tmux_set_no_viewport_layout_reapplied(tmux_roster, mixed_fleet, probes)
     assert not any("att" in i for i in ids)                                  # tmux needs no #2064 viewport
     start = next(s for s in p.steps if s.id == "set1.start")
     # the start step IS the first workspace: it creates that occupant's slot, so
-    # {pane:<slot>} / {ws:<slot>} resolve from it and no second new-session runs
-    assert start.raw[:4] == ("new-session", "-d", "-s", "alpha")
+    # {pane:<slot>} / {ws:<slot>} resolve from it and no second new-session runs.
+    # It is a shell step so the server starts inside the session-env prelude.
+    body = start.raw[2]
+    assert start.via == "shell" and "exec tmux -L default new-session -d -s alpha" in body
+    assert body.index("unset SSH_CONNECTION") < body.index("exec tmux")
     assert start.creates == tmux_roster.by_human("mac/default/alpha/edit/p1").slot_id
-    assert "-n" in start.raw and start.raw[start.raw.index("-n") + 1] == "edit"   # select-layout needs the name
-    assert len([s for s in p.steps if s.raw[:3] == ("new-session", "-d", "-s")]) == 1
+    assert "-n edit" in body                                                    # select-layout needs the name
+    assert len([s for s in p.steps if s.raw[:3] == ("new-session", "-d", "-s") or "new-session" in " ".join(s.raw)]) == 1
     assert not any(t.startswith("{pane:") or t.startswith("{ws:")
                    for s in p.steps for t in s.raw if s.creates is None and not s.placeholders)
     assert any(s.raw[:2] == ("new-window", "-d") and "logs" in s.raw for s in p.steps)
@@ -363,6 +367,9 @@ class FakeTmux:
         from watchbill.transport.base import CmdResult
         self.calls.append(("shell", *argv))
         assert not any("{pane:" in t or "{ws:" in t for t in argv), f"unresolved placeholder in shell: {argv}"
+        if "new-session" in " ".join(argv):
+            self.n += 1
+            return CmdResult(tuple(argv), 0, f"$9|%{self.n}\n")
         return CmdResult(tuple(argv), 0, "")
 
     def reachable(self):
@@ -386,7 +393,7 @@ def test_executor_runs_a_whole_tmux_cold_set(tmux_roster, mixed_fleet, probes, t
     res = X.Executor(mixed_fleet, Journal(tmp_path / "j.jsonl"), run_id="t1", session_factory=factory).run(plan)
     assert res.code == 0 and not res.failed, res.failed
     calls = made[("mac", "default")].calls
-    assert len([c for c in calls if c[:1] == ("new-session",)]) == 1
+    assert len([c for c in calls if c[:1] == ("new-session",) or (c[:1] == ("shell",) and "new-session" in " ".join(c))]) == 1
     # every slot the plan restored got a real pane id
     for slot in {s.creates for s in plan.steps if s.creates and not s.creates.startswith(("boot:", "viewport:"))}:
         assert res.pane_map[slot].startswith("%")
@@ -399,8 +406,11 @@ def test_tmux_relieve_cold_starts_the_session_once(tmux_roster, mixed_fleet, pro
     tmux_roster.by_human("mac/default/alpha/logs/p1").agent_status = "idle"
     pr = {"mac": probes["vps"].__class__(**{**probes["vps"].__dict__, "host": "mac", "flavor": "brew", "handoff_supported": False})}
     p = plan_relieve(tmux_roster, mixed_fleet, RelieveOptions(action="upgrade-mux", hosts=["mac"], cockpit_host="rig2", probes=pr))
-    news = [s for s in p.steps if s.raw[:1] == ("new-session",)]
-    assert len(news) == 1, [s.id for s in news]
+    news = [s for s in p.steps if s.raw[:1] == ("new-session",) or "new-session" in " ".join(s.raw)]
+    # kill-server takes down every tmux session, so each comes back exactly once
+    # (alpha from the server start, beta recreated); never the same label twice
+    labels = [re.search(r"-s (\S+)", " ".join(s.raw)).group(1) for s in news]
+    assert sorted(labels) == ["alpha", "beta"], labels
     ids = [s.id for s in p.steps]
     assert ids.index("mac.stop1") < ids.index(news[0].id)
     assert check_verbs_allowed(p.steps) == []          # the planned kill-server is sanctioned

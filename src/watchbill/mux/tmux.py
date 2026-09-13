@@ -146,6 +146,11 @@ class TmuxBackend:
     def send_text(self, pane_id: str, text: str) -> list[str]:
         return ["send-keys", "-t", pane_id, "-l", text]
 
+    def clear_input(self, pane_id: str) -> list[str] | None:
+        """Discard pending input (verified in the Claude and Grok TUIs: C-u
+        empties the prompt line and does not exit)."""
+        return ["send-keys", "-t", pane_id, "C-u"]
+
     def send_enter(self, pane_id: str) -> list[str]:
         return ["send-keys", "-t", pane_id, "Enter"]
 
@@ -199,10 +204,14 @@ class TmuxBackend:
         cmd = f'for i in $(seq 1 {n}); do {read}; {cond} && exit 0; sleep 1; done; exit 1'
         return ["sh", "-c", cmd]
 
+    SHELLS = ("bash", "zsh", "sh", "fish", "dash", "ksh")
+
     def agent_wait_exit(self, pane_ref: str, kind: str | None, timeout_ms: int) -> list[str]:
-        from ..classify import AGENT_KINDS
-        exe = AGENT_KINDS.get(kind or "", kind or "")
-        return [POLL, pane_ref, f'[ "$c" != {shlex.quote(exe)} ]', str(timeout_ms)]
+        """Exited = the pane's shell is back in the foreground. Comparing against
+        the agent's own name fails for agents behind an interpreter: Grok shows
+        as `node` from the start, so "not grok" would be true immediately."""
+        cond = " || ".join(f'[ "$c" = {s} ]' for s in self.SHELLS)
+        return [POLL, pane_ref, cond, str(timeout_ms)]
 
     def agent_wait_idle(self, target: str, timeout_ms: int) -> list[str]:
         """Idle on tmux = the agent binary is in the foreground AND the window
@@ -210,8 +219,8 @@ class TmuxBackend:
         let the next step type into an agent that is still mid-turn (or sitting
         on an approval dialog); the prompt step's precondition then re-reads the
         screen for a dialog before any key is sent."""
-        shell = " ".join(f'[ "$c" != {sh} ]' for sh in ("bash", "zsh", "sh", "fish") for _ in (0,))
-        cond = f'[ -n "$c" ] && {shell} && [ "$q" -ge {int(self.idle_after_s)} ]'
+        not_shell = " && ".join(f'[ "$c" != {sh} ]' for sh in self.SHELLS)
+        cond = f'[ -n "$c" ] && {not_shell} && [ "$q" -ge {int(self.idle_after_s)} ]'
         return [POLL, target, cond, str(timeout_ms)]
 
     def agent_prompt(self, target: str, text: str) -> list[list[str]]:

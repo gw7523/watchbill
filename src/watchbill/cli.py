@@ -185,7 +185,7 @@ def _roster_table(ro: _roster.Roster, explain: bool = False) -> str:
     lines = [f"fleet {ro.fleet}  taken {ro.taken_at}  reason {ro.reason}  occupants {len(ro.occupants)}"]
     for h in ro.hosts:
         flag = "up" if h.reachable else f"DOWN ({h.error})"
-        lines.append(f"  host {h.host}: {flag}  herdr {h.herdr.get('version')} {h.herdr.get('flavor')}" + ("  [cockpit]" if h.cockpit else ""))
+        lines.append(f"  host {h.host}: {flag}  {h.mux} {h.herdr.get('version')} {h.herdr.get('flavor')}" + ("  [cockpit]" if h.cockpit else ""))
     for o in ro.occupants:
         st = o.agent_status or "-"
         ids = o.live_ids.pane_id or "-"

@@ -1,0 +1,5 @@
+# A pinned resume prompt is typed into the agent after it resumes. Without a pin, nothing is typed.
+[pins."tmux-demo/wbdemo/demo/agents/p1"]
+prompt = "What codeword did I ask you to remember earlier? Reply with only the codeword."
+[pins."tmux-demo/wbdemo/demo/agents/p2"]
+prompt = "What codeword did I ask you to remember earlier? Reply with only the codeword."

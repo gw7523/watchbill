@@ -176,6 +176,12 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
             text, verified = PARK_INPUT.get(o.kind or "", ("/exit", False))
             n += 1
             heur = be.caps.agent_status != "native"
+            clear = be.clear_input(pid)
+            if clear:
+                # Anything already typed would otherwise be sent together with
+                # /exit as one message, and the agent would answer, not exit
+                # (tmux demo, 2026-09-13).
+                mux_step(plan, fleet, f"{prefix}{n}clr", o, o.session, "clear any pending input", *clear)
             mux_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"type {text} into {o.kind}",
                      *be.send_text(pid, text), unverified=not verified)
             mux_step(plan, fleet, f"{prefix}{n}b", o, o.session, "press enter", *be.send_enter(pid))

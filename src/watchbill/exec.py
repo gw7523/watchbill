@@ -200,10 +200,12 @@ class Executor:
             return f"agent {target} is blocked on an approval/question dialog; prompt refused"
         return None
 
-    def _post_prompt_check(self, step: Step, hs: HostSession) -> str | None:
-        """Pitfall 13: agent must still be present after a prompt."""
+    def _post_prompt_check(self, step: Step, hs: HostSession, raw: tuple[str, ...] | None = None) -> str | None:
+        """Pitfall 13: agent must still be present after a prompt. Uses the
+        RESOLVED argv: checking `{pane:<slot>}` reported a live agent as
+        vanished and skipped the Enter that submits the prompt (tmux demo)."""
         be = hs.backend
-        target = _prompt_target(be.name, step.raw)
+        target = _prompt_target(be.name, raw if raw is not None else step.raw)
         get = be.agent_get(target) if target else None
         if not target or get is None:
             return None
@@ -328,11 +330,13 @@ class Executor:
                     err += self._pane_tail(hs, raw)
                 return err
             if _is_prompt(hs.backend.name, step):
-                return self._post_prompt_check(step, hs)
+                return self._post_prompt_check(step, hs, raw)
             return None
         if via == "shell":
             hs = self._hs(step.host, step.session)
             res = hs.shell(list(raw), timeout=step_timeout(raw, 60.0))
+            if step.creates:
+                self._record_created(step, res, result.pane_map, hs)   # e.g. tmux new-session inside the prelude
             return None if res.ok else (res.stderr.strip() or f"exit {res.returncode}")
         if via == "local":
             cp = self.local_runner(list(raw), capture_output=True, text=True)

@@ -186,22 +186,39 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
                     mux_step(plan, fleet, f"{tag}stop{i}", hn, s, f"stop session {s} (blast radius; {note})",
                              *stop_argv, planned_stop=True)
         emit(late, len(early) + 1)
-        # 6. verify
-        for i, c in enumerate(verify.commands, 1):
-            if c.via == "mux":
-                mux_step(plan, fleet, f"{tag}verify{i}", hn, sessions[0], verify.description, *c.argv[1:], kind=StepKind.WAIT)
-            else:
-                plan.add(Step(id=f"{tag}verify{i}", kind=StepKind.WAIT, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
-                              description=verify.description, via="shell"))
-        if opts.expected_version:
-            plan.add(Step(id=f"{tag}expect", kind=StepKind.NOTE, host=hn,
-                          description=f"expect herdr {opts.expected_version} (doctor.expect_version)"))
+        # 6. verify — against a RUNNING server. In a window that stopped the
+        #    session this happens after the restart below: on tmux the verify
+        #    verb fails outright with no server (demo, 2026-09-13), and on herdr
+        #    it "passed" against a stopped server, which proved nothing.
+        def emit_verify():
+            for i, c in enumerate(verify.commands, 1):
+                if c.via == "mux":
+                    mux_step(plan, fleet, f"{tag}verify{i}", hn, sessions[0], verify.description, *c.argv[1:], kind=StepKind.WAIT)
+                else:
+                    plan.add(Step(id=f"{tag}verify{i}", kind=StepKind.WAIT, host=hn, argv=tuple(c.argv), raw=tuple(c.argv),
+                                  description=verify.description, via="shell"))
+            if opts.expected_version:
+                plan.add(Step(id=f"{tag}expect", kind=StepKind.NOTE, host=hn,
+                              description=f"expect {be.name} {opts.expected_version} (doctor.expect_version)"))
+        if not stop:
+            emit_verify()
         # 7/8. bring it back. `set_steps` owns reach → start → attach → shape →
         # resume, so a stopped session is started exactly once: on tmux the
         # start IS the first workspace, and a second `new-session -s <label>`
         # would fail with "duplicate session".
-        if parked:
-            set_steps(plan, roster, fleet, parked, probes=opts.probes, live=None if stop else roster,
+        # A stop takes down EVERY occupant of the session, not just the parked
+        # agents: watchers, servers and plain shells die too. tmux keeps nothing
+        # (the demo's `watch` window vanished after the first window), herdr
+        # restores only empty shells. Restore all of them; bridges and anything
+        # excluded or ignored stay out.
+        restore = parked
+        if stop:
+            parked_ids = {o.slot_id for o in parked}
+            restore = parked + [o for o in roster.on_host(hn)
+                                if o.session in sessions and o.slot_id not in parked_ids and o.role != "agent"
+                                and o.role != "bridge" and not (o.excluded or o.ignored)]
+        if restore:
+            set_steps(plan, roster, fleet, restore, probes=opts.probes, live=None if stop else roster,
                       no_prompt=bool(opts.action_options.get("no_prompt")), cockpit_host=opts.cockpit_host,
                       self_pane=opts.self_pane, tag=f"{tag}set", assume_running=not stop)
         elif stop:
@@ -212,6 +229,8 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
                 start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.", first_label=fw.get("label", "watchbill"),
                             cwd=fw.get("cwd") or "~", server_env=shp.server_env if shp else None)
                 attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
+        if stop:
+            emit_verify()
         # 9. journal
         plan.add(Step(id=f"{tag}done", kind=StepKind.JOURNAL, host=hn, description="set-complete", mutating=True))
     return plan

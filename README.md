@@ -92,6 +92,14 @@ target = "air.tail1234.ts.net"
 mux = "cmux"                 # macOS app; docs-verified verbs, MANUAL relaunch steps
 ```
 
+## tmux
+
+[`examples/tmux/`](examples/tmux/) is a runnable walkthrough: a throwaway tmux
+server with a Claude and a Grok in `/tmp`, cycled through a maintenance window
+and checked for layout, flags and conversation recall afterwards. It also
+explains how Watchbill works out agents on a multiplexer that does not know
+about them.
+
 ## Deploying in other environments
 
 Watchbill is one Python package with no machine-specific paths, so the same

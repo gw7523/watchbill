@@ -263,7 +263,8 @@ class Plan:
             who = s.human_id or s.host
             argv = " ".join(s.argv)
             pre = f"  (if {s.precondition})" if s.precondition else ""
-            lines.append(f"  [{flag}] {s.id:<6} {s.kind.value:<7} {who}: {s.description}{pre}")
+            label = s.mux if s.kind is StepKind.HERDR else s.kind.value
+            lines.append(f"  [{flag}] {s.id:<6} {label:<7} {who}: {s.description}{pre}")
             if argv and s.kind is StepKind.CHECK:
                 lines.append("          $ (read-only config probe: settings, plugins, hooks, MCP, trust, version, integration)")
             elif argv:

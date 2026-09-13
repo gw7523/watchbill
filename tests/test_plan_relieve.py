@@ -80,8 +80,9 @@ def test_upgrade_herdr_cold_on_official_host_stops_and_restarts(roster, fleet, p
     p = plan_relieve(roster, fleet, opts(probes, "upgrade-herdr", hosts=["vps"], expected_version="0.8.3"))
     assert not p.refused
     ids = [s.id for s in p.steps]
+    # verify and the version expectation come after the restart, against a running server
     order = [ids.index("snap"), ids.index("guard"), ids.index("vps.keep.default"), ids.index("vps.stop1"),
-             ids.index("vps.act1"), ids.index("vps.verify1"), ids.index("vps.expect"), ids.index("vps.set1.start"), ids.index("vps.done")]
+             ids.index("vps.act1"), ids.index("vps.set1.start"), ids.index("vps.verify1"), ids.index("vps.expect"), ids.index("vps.done")]
     assert order == sorted(order)
     assert next(s for s in p.steps if s.id == "vps.stop1").raw == ("session", "stop", "default")
     assert ("server", "stop") not in verbs(p)

@@ -79,9 +79,16 @@ def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str,
         # workspace's root pane. `creates` is that occupant's slot_id so
         # {pane:<slot>} / {ws:<slot>} resolve from this one step; the shape
         # rebuild must not create the same session again (see set_steps).
-        mux_step(plan, fleet, f"{tag}start", host.name, session,
-                 f"start tmux server {session} with first session {first_label}",
-                 *native, creates=creates_slot or f"boot:{host.name}/{session}")
+        # The first tmux command starts the server, which keeps that command's
+        # environment for every pane: run it after the session prelude.
+        import shlex as _shlex
+        from .sessionenv import start_prelude
+        body = start_prelude(server_env) + "exec " + _shlex.join(be.cli_prefix(session) + list(native))
+        argv = ("sh", "-c", body)
+        plan.add(Step(id=f"{tag}start", kind=StepKind.SHELL, host=host.name, session=session, mux=host.mux,
+                      description=f"start tmux server {session} with first session {first_label} (user's session env, no SSH_*)",
+                      argv=argv, raw=argv, mutating=True, via="shell",
+                      creates=creates_slot or f"boot:{host.name}/{session}"))
     else:
         # herdr: the host's `start` (default: a detached `herdr --session S
         # server`, since the bare command stays in the foreground). A host that
@@ -306,6 +313,10 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                 if be.name != "herdr":
                     # send-keys -l of a multi-line string submits at every newline.
                     text = " ".join(ln.strip() for ln in text.splitlines() if ln.strip())
+                clear = be.clear_input(target)
+                if clear:
+                    mux_step(plan, fleet, f"{p}{name}.clr", o, session, "clear any pending input before the prompt",
+                             *clear, placeholders=tph)
                 for j, argv in enumerate(be.agent_prompt(target, text)):
                     mux_step(plan, fleet, f"{p}{name}.prompt" + (f".{j}" if j else ""), o, session,
                              f"prompt ({o.resume_prompt.source}); " + ("Herdr rejects blocked agents with agent_blocked"

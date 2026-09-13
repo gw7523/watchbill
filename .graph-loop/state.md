@@ -133,7 +133,7 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - Follow-ups: tmux server start does not apply the session prelude yet; the #2064 viewport step never proved
   necessary (claude + grok, local + ssh) → candidate to make opt-in.
 
-## Lane 6 (owner: fix ser6's two issues, re-test, then a tmux example): IN PROGRESS
+## Lane 6 (owner: fix ser6's two issues, re-test, then a tmux example): CLOSED
 - ser6 token-lean: cloned gw7523/agent-skills on ser6 and ran its installer (--check reviewed first): tl-* relinked,
   skills taken over from personal-config marks as intended. No repo edited (other agents active in both repos on rig2).
 - ser6 herdr.service: stopped the 203/EXEC loop (245,396 restarts), ran personal-config's own
@@ -142,9 +142,23 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   start = systemctl --user start herdr.service. 39 steps, 0 failed. PROVE: 3 real agents same ids + flags; test agent
   same id + flags, codeword recalled, no hook error; herdr.service active, MainPID /usr/bin/herdr server,
   WAYLAND_DISPLAY=wayland-1, no SSH_*. Test agent exited and its workspace closed afterwards.
-- Next: tmux example (rig2 local, test agents in /tmp).
+- tmux example (examples/tmux/, rig2 local, haiku Claude + Grok in /tmp + a `watch` window):
+  run 1 FAIL safely at verify (ran between kill-server and start) → verify moved after the restart.
+  Recovery via `watchbill set` from the pre-window roster worked, but exposed a broken tmux idle condition
+  (`[ a ] [ b ]`, string-tested only) → fixed + conditions now executed in tests.
+  Next runs: post-prompt check used the unresolved placeholder → prompt Enter skipped; park then appended /exit to
+  the pending text (Claude answered instead of exiting; exit wait failed; host stopped before kill-server — safe).
+  → resolved pane in the check; clear pending input (tmux C-u, herdr send-text 0x15, both verified) before /exit and
+  prompts. Then watch window lost: stop windows restored only parked agents → restore every occupant the stop ends.
+  Final: 2 runs, 37 steps, 0 failed; layout string identical, `watch -n 5 date` relaunched, both agents resumed with
+  flags + --continue, codewords recalled (Claude every run; Grok 3 runs captured). Demo torn down.
+- Test agents: transcripts live under ~/.claude/projects/-tmp-* and ~/.grok/sessions/%2Ftmp%2F* (not in /tmp);
+  they age out with each tool's retention. Trust was accepted for /tmp/wb-tmux-a (rig2) and /tmp/wb-hooktest (ser6).
 
 ## Next lane (not started)
+- Make the #2064 viewport step opt-in (never needed: claude + grok, herdr local + ssh).
+- tmux over SSH on a Mac; cmux probe on a Mac (every cmux verb is still docs-only).
+- Park commands still unverified: codex (/quit), gemini, cursor, opencode, hermes.
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.
   Everything up to `--yes` is exercised; nothing has ever parked a live agent.

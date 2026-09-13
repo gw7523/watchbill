@@ -1,0 +1,14 @@
+# Example: one local tmux server (socket "wbdemo") managed by Watchbill.
+# Point WATCHBILL_HOME at a directory holding this file as config/hosts.toml.
+[fleet]
+name = "tmux-demo"
+
+[[host]]
+name = "tmux-demo"          # not this machine's hostname, so it is not treated as the cockpit
+transport = "local"         # ssh_cli + target = "..." reaches a tmux server on another machine
+mux = "tmux"
+sessions = ["wbdemo"]       # tmux server sockets (tmux -L <name>), not tmux session names
+# tmux knows nothing about agents: an agent counts as idle once its window has
+# been quiet this long and no approval prompt is on screen. 30s is the default;
+# the demo uses a short value so it runs quickly.
+mux_options = { idle_after_s = 6 }

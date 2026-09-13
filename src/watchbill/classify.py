@@ -34,6 +34,7 @@ AGENT_KINDS: dict[str, str] = {
 }
 _EXE_TO_KIND = {exe: kind for kind, exe in AGENT_KINDS.items()}
 
+INTERPRETERS = {"node", "bun", "deno", "python", "python3"}
 WATCHER_BINS = {"watchexec", "entr", "nodemon", "fswatch", "inotifywait", "cargo-watch",
                 "chokidar", "reflex", "air", "modd", "tsc-watch", "jest-watch"}
 POLLER_BINS = {"watch", "tail", "journalctl", "less", "htop", "btop", "top", "sleep"}
@@ -89,6 +90,11 @@ def classify(pane: dict, process_info: dict | None) -> Classification:
         if exe in _EXE_TO_KIND:
             return Classification("agent", kind=_EXE_TO_KIND[exe], argv=av, cmdline=" ".join(av),
                                   reason="argv[0] is a known agent executable")
+        # `node /…/bin/grok …`: the agent is argv[1] behind an interpreter. Herdr
+        # detects these itself; tmux has only the process table.
+        if exe in INTERPRETERS and len(av) > 1 and _basename(av[1]) in _EXE_TO_KIND:
+            return Classification("agent", kind=_EXE_TO_KIND[_basename(av[1])], argv=av, cmdline=" ".join(av),
+                                  reason=f"agent executable behind {exe}")
 
     if not primary:
         return Classification("shell", reason="no foreground process")

@@ -95,6 +95,9 @@ class CmuxBackend:
     def send_text(self, pane_id: str, text: str) -> list[str]:
         return ["send", "--surface", pane_id, text]
 
+    def clear_input(self, pane_id: str) -> list[str] | None:
+        return None   # the documented send-key set has no control keys
+
     def send_enter(self, pane_id: str) -> list[str]:
         return ["send-key", "--surface", pane_id, "enter"]
 

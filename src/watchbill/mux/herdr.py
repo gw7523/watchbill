@@ -72,6 +72,12 @@ class HerdrBackend:
     def send_text(self, pane_id: str, text: str) -> list[str]:
         return ["pane", "send-text", pane_id, text]
 
+    def clear_input(self, pane_id: str) -> list[str] | None:
+        """Discard anything typed but not submitted. herdr rejects the key name
+        `C-u` (invalid_key), but the Ctrl-U byte through send-text clears the
+        line (verified 2026-09-13)."""
+        return ["pane", "send-text", pane_id, "\x15"]
+
     def send_enter(self, pane_id: str) -> list[str]:
         return ["pane", "send-keys", pane_id, "enter"]          # verified (`Enter` also accepted)
 

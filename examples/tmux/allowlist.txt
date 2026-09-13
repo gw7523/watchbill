@@ -1,0 +1,2 @@
+# Watchers/pollers whose command line matches a glob here are relaunched by `set`.
+watch -n 5 date

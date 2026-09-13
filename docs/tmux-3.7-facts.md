@@ -93,6 +93,21 @@ placeholders exactly like Herdr's JSON results.
   may refuse to attach across a protocol bump. `upgrade-mux` on tmux is
   therefore cold (park, kill-server, upgrade, start, set).
 
+## Learned from the live example (2026-09-13)
+
+`examples/tmux/` ran a haiku Claude and a Grok side by side plus a `watch`
+window on `tmux -L wbdemo`, through `relieve restart-harness` four times.
+
+| Fact | Consequence in Watchbill |
+|---|---|
+| an agent can run behind an interpreter (`node …/grok`), so `pane_current_command` is `node` | classify checks argv[1] behind known interpreters; the exit wait watches for the shell to return, not for the agent's name to change |
+| `send-keys C-u` empties the prompt line in both the Claude and Grok TUIs without exiting | park and resume prompts clear pending input first (otherwise `/exit` is appended to half-typed text and sent as a message) |
+| herdr rejects the key name `C-u`, but the Ctrl-U byte through `pane send-text` clears the line | the herdr backend clears input the same way |
+| `kill-server` ends every session and window; nothing persists | a stop window restores every occupant it took down (watchers, shells), not just parked agents |
+| the agent's own cwd-scoped `--continue` resumes the right conversation when kind+cwd is unique (proven with codewords, both agents, repeatedly) | the tmux resume path |
+| `base-index` / `pane-base-index` vary by config | never address panes by index; use the ids tmux prints (`-P -F '#{pane_id}'`) |
+| a poll condition that is only string-tested can be broken shell (`[ a ] [ b ]`) | tests execute generated conditions in `sh` |
+
 ## Plugins
 
 TPM (`~/.tmux/plugins/tpm`) is the de-facto plugin manager:
