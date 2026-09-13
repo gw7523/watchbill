@@ -97,7 +97,7 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   only, restart-harness REFUSED (would kill the excluded pane). nohup start form proven to detach on Linux.
 - Deliberately not done: any probe inside a distrobox (owner deferred it).
 
-## Lane 5 (ser6 live, owner-approved 2026-09-13): OPEN
+## Lane 5 (ser6 live, owner-approved 2026-09-13): CLOSED — step A green, step B green twice
 - Human gate: "approved to stop ser6 sessions (including herdr) to test. Nothing critical running there. Do not
   (yet) upgrade herdr." → restart-harness only (no action commands); no upgrade-mux / omarchy-update.
 - Scope split: the distrobox pane moves from `exclude` (protected) to new `ignore` (never managed; may end when
@@ -118,6 +118,20 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   personal-config) while ser6 Claude settings call it on every prompt.
 - Step B config: separate WATCHBILL_HOME naming only ser6 default (no cockpit → no viewport split on rig2),
   --no-prompt.
+
+- Pre-step-B probe: the recorded config showed `trusted=False` for the omarchy-plugins Claude. Tested on a throwaway
+  ser6 session before touching it: Claude 2.1.252 with --dangerously-skip-permissions starts there without a dialog.
+  Also added: restore-phase failures are scoped to the occupant (host marked set-partial), parking stays host-fatal.
+- Step B run 1: 31 steps, 0 failed. PROVE: w3 claude 3bfed0ba…, w4 claude 0bad6b62…, w6 grok 01a06d73… unchanged;
+  flags unchanged; panes/workspaces/cwds unchanged; ignored distrobox pane ended as planned.
+  FINDING: the server restarted over ssh had SSH_CONNECTION and no desktop session → sessionenv.py.
+- Step B run 2: 31 steps, 0 failed. Same PROVE, and the new server has WAYLAND_DISPLAY=wayland-1, DISPLAY=:0,
+  XDG_SESSION_TYPE=wayland, XDG_CURRENT_DESKTOP=Hyprland, no SSH_CONNECTION.
+- Not ours, reported: ser6 ~/.local/bin/tl-* are dangling (token-lean left personal-config) while ser6 Claude
+  settings run tl-context-guard on every prompt; ser6 herdr.service hardcodes a missing ~/.local/bin/herdr.
+- Test artifacts (rehearsal transcripts, grok session, session-env entries) deleted on ser6 after confirming codewords.
+- Follow-ups: tmux server start does not apply the session prelude yet; the #2064 viewport step never proved
+  necessary (claude + grok, local + ssh) → candidate to make opt-in.
 
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale

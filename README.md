@@ -56,6 +56,14 @@ seat environment are restored exactly; the on-disk parts are checked before
 the agent starts, changes are reported, and a change that would break the
 resume stops that host. Secret values are never recorded.
 
+**The session comes back in the same environment too.** A multiplexer server
+started over SSH would otherwise carry the SSH connection and lose the
+desktop, so resumed agents could no longer open a browser or reach the
+clipboard. Watchbill records each server's display and desktop variables and
+restarts it with the user's live session environment, falling back to the
+record, dropping any display that no longer exists, and never passing on the
+SSH connection it arrived through.
+
 Minimal `hosts.toml`:
 
 ```toml

@@ -109,6 +109,22 @@ could.
 | a server started from inside a Claude session inherits `CLAUDECODE` / `CLAUDE_CODE_CHILD_SESSION`; agents in it write **no transcript** and cannot be resumed | the local transport scrubs agent-session environment from everything it spawns |
 | Claude's folder-trust dialog blocks `agent start` (`agent_not_ready`, status `blocked`) | recorded config includes `trusted`; losing trust stops the host before the agent starts |
 
+### Learned on ser6 over SSH (2026-09-13)
+
+A throwaway session on ser6 (haiku Claude + Grok) was cycled three times over
+SSH, then ser6's real `default` session (two Claude agents and a Grok) was
+cycled twice. Every agent came back on its own session id with its own flags.
+
+| Fact | Consequence in Watchbill |
+|---|---|
+| Grok's `/exit` exits the TUI (documented in grok's README, now verified live) | Grok park is verified |
+| Grok reports `agent_session` only after its first prompt | an idle Grok that was never prompted is `unref` and resumes fresh |
+| a Grok just resumed with a long history can report idle while still redrawing, and drop a submitted prompt (`agent_prompt_stalled`) | exec settles and retries a stalled prompt once |
+| on Claude 2.1.252, `--dangerously-skip-permissions` in a folder with an explicit `hasTrustDialogAccepted: false` starts without the trust dialog (rig2's dialog appeared for a folder with no entry at all) | recorded `trusted` is informative, not predictive; only a change from true to false stops a host |
+| a herdr server started over ssh inherits `SSH_CONNECTION` and lacks the desktop session (`WAYLAND_DISPLAY`, `DISPLAY`, `XDG_SESSION_TYPE=wayland`) | server env is recorded and restored; the live systemd user environment is authoritative; SSH_* is dropped |
+| the server is the parent process of every pane shell | how Watchbill finds and reads a herdr server's environment |
+| a machine can run a second, independent herdr for a seat (ser6's SFL distrobox runs its own `~/Work/sfl/.home/.local/bin/herdr server`) | stopping one herdr session never touches the other; name hosts by the herdr they talk to |
+
 ## UNVERIFIED-0.8.2 list (probe before MVP)
 
 1. ~~Headless session start~~ — verified locally (`setsid -f herdr --session S server`). Still to prove over SSH on ser6.
