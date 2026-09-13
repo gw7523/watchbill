@@ -99,3 +99,11 @@ def test_a_stop_window_restores_watchers_and_shells_not_only_parked_agents(roste
     assert any(s.slot_id == dev.slot_id and s.verb == ("pane", "run") for s in p.steps)
     shell = roster.by_human("ser6/default/scratch/1/p2")                    # plain shell: its pane comes back
     assert any(s.creates == shell.slot_id for s in p.steps)
+
+
+def test_viewport_attach_is_opt_in(roster, fleet, probes):
+    from watchbill.plan_set import SetOptions, plan_set
+    opts = dict(targets=["ser6/default/sfl-site/1/p1"], cockpit_host="rig2", self_pane="w4:p1", probes=probes)
+    assert any(s.id.endswith("att2") for s in plan_set(roster, fleet, SetOptions(**opts)).steps)     # opted in (conftest)
+    fleet.host("ser6").mux_options = {}
+    assert not any("att" in s.id for s in plan_set(roster, fleet, SetOptions(**opts)).steps)         # default: no viewport

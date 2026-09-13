@@ -125,6 +125,12 @@ def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_
         attach = f"{_shlex.join(host.exec_prefix)} {attach}"
     if not be.caps.needs_viewport:
         return   # tmux send-keys and cmux send need no attached client
+    if not host.mux_options.get("attach_before_resume", False):
+        # Herdr issue #2064 says 0.8.x will not resume an agent headless. It did
+        # not reproduce in any live run (claude and grok, herdr 0.8.2, local and
+        # over ssh, 2026-09-13), so the viewport is opt-in per host:
+        #   mux_options = { attach_before_resume = true }
+        return
     if cockpit is None or not self_pane or cockpit.mux != "herdr":
         plan.add(Step(id=f"{tag}att", kind=StepKind.NOTE, host=host.name, session=session,
                       description="#2064: attach a client to this session by hand before agents resume "

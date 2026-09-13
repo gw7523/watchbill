@@ -33,6 +33,7 @@ name = "ser6"
 target = "ser6.example"
 transport = "ssh_cli"
 sessions = ["default"]
+mux_options = { attach_before_resume = true }   # exercises the #2064 viewport path
 start = "systemctl --user start herdr.service"
 
 [[host]]

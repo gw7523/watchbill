@@ -105,7 +105,7 @@ could.
 | `status server --json` exits **0** for a stopped session (`"running":false`) | the start wait polls for `"running":true` |
 | `agent start … -- <args>` **prepends the kind's executable** (`-- claude --model x` ran `claude claude --model x`) | only arguments go after `--` |
 | a session restarted after `session stop` **restores its workspace layout** from `session.json` (panes come back as shells in the recorded cwd) | create steps reuse a restored pane by workspace label, tab label and order |
-| `agent start` and `agent start … -- --resume <id>` both work with **no client attached** | issue #2064 did not reproduce on this path; the viewport step stays until it is also shown unnecessary over SSH and for other kinds |
+| `agent start` and `agent start … -- --resume <id>` both work with **no client attached** (claude and grok, local and over SSH) | issue #2064 never reproduced, so the viewport step is opt-in: `mux_options = { attach_before_resume = true }` |
 | a server started from inside a Claude session inherits `CLAUDECODE` / `CLAUDE_CODE_CHILD_SESSION`; agents in it write **no transcript** and cannot be resumed | the local transport scrubs agent-session environment from everything it spawns |
 | Claude's folder-trust dialog blocks `agent start` (`agent_not_ready`, status `blocked`) | recorded config includes `trusted`; losing trust stops the host before the agent starts |
 
