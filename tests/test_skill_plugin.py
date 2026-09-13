@@ -16,7 +16,7 @@ def test_skill_forbids_overrides_unless_spoken():
 def test_plugin_manifest_is_a_thin_wrapper():
     m = tomllib.loads((ROOT / "plugin/herdr-plugin.toml").read_text())
     from watchbill import PLUGIN_ID
-    assert m["id"] == PLUGIN_ID == "gw7523.watchbill" and m["min_herdr_version"] == "0.8.2"
+    assert m["id"] == PLUGIN_ID == "agents.watchbill" and m["min_herdr_version"] == "0.8.2"
     # nothing in this tool is SFL-specific; the namespace must not drift back
     assert not m["id"].startswith("sfl."), "watchbill is a personal, Apache-2.0 tool"
     assert m["actions"]

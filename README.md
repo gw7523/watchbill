@@ -3,7 +3,7 @@
 Cockpit CLI that catalogs, parks, and restores coding-agent fleets running
 inside terminal multiplexers — [Herdr](https://herdr.dev) 0.8.2 first,
 tmux 3.x, and cmux (macOS) — on one machine or many, over SSH / Tailscale.
-Plugin id `gw7523.watchbill`. The job it does is the same on every mux: know
+Plugin id `agents.watchbill`. The job it does is the same on every mux: know
 what is running where, stand it down cleanly, bring it back with each
 agent's conversation, and wrap plugin installs, upgrades and harness
 restarts around that cycle.

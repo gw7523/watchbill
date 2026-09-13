@@ -2,9 +2,9 @@
 # lives here. Install with `herdr plugin link plugin/` from the repo, or
 # `herdr plugin install gw7523/watchbill/plugin`.
 #
-# The id namespace is the GitHub owner the plugin installs from, which is how
-# `herdr plugin install owner/repo` reads. Nothing here is SFL-specific.
-id = "gw7523.watchbill"
+# The id is `agents.watchbill`: named for what it manages (coding-agent
+# fleets), not for an owner or an organisation.
+id = "agents.watchbill"
 name = "Watchbill"
 version = "0.0.1"
 min_herdr_version = "0.8.2"
