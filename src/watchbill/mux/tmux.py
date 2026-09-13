@@ -198,7 +198,7 @@ class TmuxBackend:
         argv = list(resume_argv) if resume_argv else [AGENT_KINDS.get(kind, kind), *(flags or [])]
         return [self.send_text(pane_ref, shlex.join(argv)), self.send_enter(pane_ref)]
 
-    def _poll(self, session: str, pane_ref: str, cond: str, timeout_ms: int) -> list[str]:
+    def _poll(self, session: str, pane_ref: str, cond: str, timeout_ms: int, nudge: bool = False) -> list[str]:
         """One shell loop that exposes both signals the condition may use:
         ``$c`` the pane's foreground command, ``$q`` seconds since the window
         last produced output. tmux has no wait primitive, so every wait is
@@ -207,7 +207,9 @@ class TmuxBackend:
         fmt = "#{pane_current_command}|#{window_activity}"
         read = (f'o=$(tmux -L {shlex.quote(session)} display-message -t {shlex.quote(pane_ref)} -p {shlex.quote(fmt)}); '
                 'c=${o%%|*}; a=${o##*|}; q=$(( $(date +%s) - ${a:-0} ))')
-        cmd = f'for i in $(seq 1 {n}); do {read}; {cond} && exit 0; sleep 1; done; exit 1'
+        poke = (f'; [ "$i" = 4 ] && tmux -L {shlex.quote(session)} send-keys -t {shlex.quote(pane_ref)} Enter'
+                if nudge else "")
+        cmd = f'for i in $(seq 1 {n}); do {read}; {cond} && exit 0{poke}; sleep 1; done; exit 1'
         return ["sh", "-c", cmd]
 
     SHELLS = ("bash", "zsh", "sh", "fish", "dash", "ksh")
@@ -217,7 +219,7 @@ class TmuxBackend:
         the agent's own name fails for agents behind an interpreter: Grok shows
         as `node` from the start, so "not grok" would be true immediately."""
         cond = " || ".join(f'[ "$c" = {s} ]' for s in self.SHELLS)
-        return [POLL, pane_ref, cond, str(timeout_ms)]
+        return [POLL, pane_ref, cond, str(timeout_ms), "nudge"]
 
     def agent_wait_idle(self, target: str, timeout_ms: int) -> list[str]:
         """Idle on tmux = the agent binary is in the foreground AND the window
@@ -284,5 +286,5 @@ class TmuxBackend:
         a = list(argv)
         if a[:1] != [POLL]:
             return a
-        _, pane_ref, cond, timeout = a
-        return self._poll(session, pane_ref, cond, int(timeout))
+        _, pane_ref, cond, timeout, *extra = a
+        return self._poll(session, pane_ref, cond, int(timeout), nudge="nudge" in extra)

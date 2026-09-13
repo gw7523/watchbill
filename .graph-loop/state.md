@@ -155,7 +155,7 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - Test agents: transcripts live under ~/.claude/projects/-tmp-* and ~/.grok/sessions/%2Ftmp%2F* (not in /tmp);
   they age out with each tool's retention. Trust was accepted for /tmp/wb-tmux-a (rig2) and /tmp/wb-hooktest (ser6).
 
-## Lane 7 (owner: proceed; Mac mini over Tailscale; containers for agents without accounts): IN PROGRESS
+## Lane 7 (owner: proceed; Mac mini over Tailscale; containers for agents without accounts): CLOSED
 - #2064 viewport now opt-in (mux_options.attach_before_resume).
 - Mac mini (holloway@100.105.4.100, ssh_options -i personal key): docs/macos-facts.md. herdr 0.9 (protocol 22)
   green 4 runs via a launchd GUI-domain throwaway job; tmux over SSH green 2 runs (mechanics; agent logged out).
@@ -163,7 +163,13 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   clear by pane; Claude Remote Control park guard + opt-in disconnect. Cleaned up: test agent exited, wbmac servers
   stopped, launchd job booted out, plist removed.
 - cmux: installed CLI differs from the published docs (cmux-facts.md note). App not running; not probed live.
-- Next in this lane: temp container with a local model for codex + opencode; flag tables for gemini + cursor.
+- Agent CLIs without accounts (docs/agent-cli-facts.md): flag tables for codex, cursor, gemini, opencode from --help;
+  credential flags redacted in recorded argv. Throwaway Ollama container (qwen2.5:1.5b, localhost) → codex --oss and
+  opencode live on an isolated herdr session: run 1 FAIL safely (codex /quit not submitted) → exit waits nudge Enter
+  once; runs 2 and 3 green, continuity proven from each CLI's session storage (model too small for recall). Also fixed:
+  seat env exported into reused panes (opencode lost OPENCODE_CONFIG). Gemini and Cursor: no account, flag tables only.
+- Cleaned: test herdr session, Ollama container and image, test codex rollout and opencode session, /tmp test dirs.
+- cmux live: the app is not running and SSH access needs a socket password (cmux Settings or CMUX_SOCKET_PASSWORD).
 
 ## Next lane (not started)
 - Park commands still unverified: codex (/quit), gemini, cursor, opencode, hermes.

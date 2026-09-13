@@ -31,7 +31,9 @@ def test_dry_run_never_reaches_a_mutating_verb(roster, fleet, probes, fake_sessi
         assert not [s for s in plan.scheduled() if s.kind is StepKind.WAIT]
         j = journal(tmp_path)
         res = X.Executor(fleet, j, run_id="r1", session_factory=fake_sessions).run(plan)   # FakeSession raises on mutation
-        waits = [s for s in plan.steps if s.kind is StepKind.WAIT]
+        # every step dry-run skipped: mutating steps, plus waits that are not already counted as mutating
+        # (a nudging exit wait presses a key, so it is both)
+        waits = [s for s in plan.steps if s.kind is StepKind.WAIT and not s.mutating]
         assert res.code == OK and res.dry == len(plan.mutating_steps()) + len(waits)
         assert {e["status"] for e in j.entries()} <= {"dry-run", "ok", "host-start", "set-complete"}
         assert not any(is_mut for (_h, is_mut) in [(c, c[1:3] in {("session", "stop"), ("pane", "close")})

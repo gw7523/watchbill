@@ -294,6 +294,19 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                     if not cfg.get("flags_carried") and o.argv[1:]:
                         plan.notes.append(f"{o.human_id}: {o.kind} flags are not carried (no verified flag table); "
                                           f"it resumes without: {' '.join(o.argv[1:])[:80]}")
+                seat = agentconfig.restore_env(cfg)
+                if seat and be.name in ("herdr", "tmux"):
+                    # A pane the mux restored on its own (herdr, from session.json)
+                    # has the new server's environment, not this agent's seat
+                    # environment, and --env/-e only applies to panes Watchbill
+                    # creates. The agent command is typed into the pane's shell,
+                    # so export the seat variables there first (rehearsal:
+                    # opencode lost OPENCODE_CONFIG, and with it its model).
+                    import shlex as _shlex
+                    exports = "export " + " ".join(f"{k}={_shlex.quote(v)}" for k, v in sorted(seat.items()))
+                    mux_step(plan, fleet, f"{p}{name}.env", o, session, f"restore seat environment ({', '.join(sorted(seat))})",
+                             *be.send_text(pane_tok, exports), placeholders=ph)
+                    mux_step(plan, fleet, f"{p}{name}.env.1", o, session, "press enter", *be.send_enter(pane_tok), placeholders=ph)
                 if o.resume_argv:
                     how = (f"resume {o.kind} conversation {o.agent_session['value'][:8]}…" if o.agent_session
                            else f"resume {o.kind} via {' '.join(o.resume_argv)} (cwd-scoped)")

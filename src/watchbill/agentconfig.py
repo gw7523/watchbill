@@ -41,6 +41,10 @@ RESTORE_ENV = (
     "CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
     "GH_CONFIG_DIR", "GIT_CONFIG_GLOBAL", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
     "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "MISE_CONFIG_DIR", "MISE_DATA_DIR",
+    # opencode's config-file locations. OPENCODE_CONFIG_CONTENT is deliberately
+    # absent: inline provider config can embed API keys. An agent configured
+    # inline comes back without that config; configure it through a file.
+    "OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "GEMINI_CLI_HOME", "OLLAMA_HOST",
 )
 # Recorded for the operator (drift display), never applied: the new pane's
 # shell rebuilds these itself.

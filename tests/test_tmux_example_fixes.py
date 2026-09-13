@@ -161,3 +161,22 @@ def test_remote_control_refuses_by_default_and_disconnects_when_opted_in(fleet, 
                      sleep=lambda s: None).run(plan())
     assert not res.failed and ("pane", "send-text", "w1:p1", "/rc") in fake2.calls
     assert fake2.calls.index(("pane", "send-text", "w1:p1", "/rc")) < fake2.calls.index(("pane", "send-text", "w1:p1", "/exit"))
+
+
+def test_exit_wait_presses_enter_once_if_the_agent_is_still_there(tmp_path):
+    """Execute the generated loop against a fake herdr that keeps the agent for 6 checks."""
+    import os, stat, subprocess
+    log, count = tmp_path / "calls", tmp_path / "n"
+    fake = tmp_path / "herdr"
+    fake.write_text(f"""#!/bin/sh
+echo "$*" >> {log}
+case "$*" in *"agent get"*) n=$(cat {count} 2>/dev/null || echo 0); n=$((n+1)); echo $n > {count}; [ $n -lt 6 ] && exit 0 || exit 1;; esac
+exit 0
+""")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    be = mux.get("herdr")
+    body = be.resolve_poll("s", be.agent_wait_exit("w1:p1", "codex", 20000))[2].replace("sleep 1", "sleep 0")
+    r = subprocess.run(["sh", "-c", body], env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"})
+    calls = log.read_text().splitlines()
+    assert r.returncode == 0
+    assert sum("send-keys w1:p1 enter" in c for c in calls) == 1          # exactly one nudge

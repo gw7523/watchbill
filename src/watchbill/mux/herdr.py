@@ -128,7 +128,7 @@ class HerdrBackend:
         `agent_not_found` (verified). `--until unknown` is a *state* an agent
         that is still running can be in, so it is the wrong oracle. Poll
         `agent get` until it fails instead."""
-        return [POLL, pane_ref, "gone", str(timeout_ms)]
+        return [POLL, pane_ref, "gone", str(timeout_ms), "nudge"]
 
     def agent_wait_idle(self, target: str, timeout_ms: int) -> list[str]:
         argv = ["agent", "wait", target]
@@ -198,9 +198,18 @@ class HerdrBackend:
         a = list(argv)
         if a[:1] != [POLL]:
             return a
-        _, pane_ref, cond, timeout = a
+        _, pane_ref, cond, timeout, *extra = a
         get = shlex.join(["herdr", "--session", session, "agent", "get", pane_ref])
-        return poll_loop(get, timeout_ms=int(timeout), invert=(cond == "gone"))
+        if "nudge" not in extra:
+            return poll_loop(get, timeout_ms=int(timeout), invert=(cond == "gone"))
+        # Nudge: if the agent is still there after 4s, press Enter once. The
+        # first Enter can land while a slash-command popup is opening and only
+        # complete the command (codex left `/quit` in its input, 2026-09-13).
+        # On an idle agent with an empty input, one Enter does nothing.
+        enter = shlex.join(["herdr", "--session", session, "pane", "send-keys", pane_ref, "enter"])
+        n = max(1, int(timeout) // 1000)
+        return ["sh", "-c", f'for i in $(seq 1 {n}); do {get} >/dev/null 2>&1 || exit 0; '
+                            f'[ "$i" = 4 ] && {enter} >/dev/null 2>&1; sleep 1; done; exit 1']
 
 
 def snapshot_from_herdr(snap: dict) -> MuxSnapshot:

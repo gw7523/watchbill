@@ -88,7 +88,8 @@ def mux_step(plan: Plan, fleet: Fleet, sid: str, occ_or_host, session: str, desc
     if raw[:1] == (POLL,):
         shell = tuple(be.resolve_poll(session, raw))   # type: ignore[attr-defined]
         return plan.add(Step(id=sid, kind=StepKind.WAIT, host=host_name, session=session, mux=host.mux,
-                             description=description, argv=tuple(hs.shell_argv(shell)), raw=shell, mutating=False,
+                             description=description, argv=tuple(hs.shell_argv(shell)), raw=shell,
+                             mutating="nudge" in raw,                  # a nudging wait presses a key
                              slot_id=slot_id, human_id=human_id, via="shell", unverified=unverified,
                              placeholders=placeholders, agent_kind=agent_kind))
     argv = hs.mux_argv(*raw)

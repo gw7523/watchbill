@@ -75,6 +75,9 @@ def test_set_restores_seat_env_and_verifies_before_start(fleet_json, allowlist, 
     check = next(s for s in p.steps if s.kind is StepKind.CHECK)
     start = next(s for s in p.steps if s.verb == ("agent", "start"))
     assert p.steps.index(check) < p.steps.index(start)
+    # a restored (reused) pane never got --env: the seat is exported into its shell before the start
+    env = next(s for s in p.steps if s.id.endswith(".env"))
+    assert p.steps.index(env) < p.steps.index(start) and env.raw[-1] == "export CLAUDE_CONFIG_DIR=/home/u/.claude-sfl"
     assert check.expect == DISK and not check.mutating and "/home/u/.claude-sfl" in check.raw[2]
 
 
@@ -117,3 +120,10 @@ def test_herdr_agent_start_passes_arguments_not_the_executable():
     assert argv[argv.index("--"):] == ["--", "--model", "haiku", "--resume", "id"]
     fresh = be.agent_start("a", "claude", "w1:p1", None, ["--dangerously-skip-permissions"])[0]
     assert fresh[fresh.index("--"):] == ["--", "--dangerously-skip-permissions"]
+
+
+def test_opencode_config_paths_are_restored_but_inline_content_is_not():
+    env, _ = A.parse_environ("V OPENCODE_CONFIG=/tmp/oc.json\nV OPENCODE_CONFIG_CONTENT={\"apiKey\":\"x\"}\n")
+    rec = A.build("opencode", ["opencode"], env, [], {})
+    assert A.restore_env(rec) == {"OPENCODE_CONFIG": "/tmp/oc.json"}
+    assert "OPENCODE_CONFIG_CONTENT" not in A.environ_probe_argv(1)[2]
