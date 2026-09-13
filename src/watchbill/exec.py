@@ -201,7 +201,7 @@ class Executor:
                 err = self._check_precondition(step, hs, raw)
                 if err:
                     return err
-            res = hs.mux(*raw)
+            res = hs.mux(*raw, timeout=step_timeout(raw, 30.0))
             self._record_created(step, res, result.pane_map, hs)
             if not res.ok:
                 return res.stderr.strip() or res.stdout.strip() or f"exit {res.returncode}"
@@ -210,12 +210,29 @@ class Executor:
             return None
         if via == "shell":
             hs = self._hs(step.host, step.session)
-            res = hs.shell(list(raw))
+            res = hs.shell(list(raw), timeout=step_timeout(raw, 60.0))
             return None if res.ok else (res.stderr.strip() or f"exit {res.returncode}")
         if via == "local":
             cp = self.local_runner(list(raw), capture_output=True, text=True)
             return None if cp.returncode == 0 else (cp.stderr.strip() or f"exit {cp.returncode}")
         return f"unhandled step kind {step.kind}"
+
+
+def step_timeout(raw: tuple[str, ...], default: float) -> float:
+    """Subprocess timeout for one step, derived from the step itself so exec
+    never kills a command before its own deadline: `--timeout <ms>` on a mux
+    verb, or the iteration count of a `for i in $(seq 1 N)` poll loop."""
+    r = list(raw)
+    if "--timeout" in r and r.index("--timeout") + 1 < len(r):
+        try:
+            return int(r[r.index("--timeout") + 1]) / 1000 + 15
+        except ValueError:
+            pass
+    if r[:2] == ["sh", "-c"] and len(r) > 2:
+        m = re.search(r"seq 1 (\d+)\)", r[2])
+        if m:
+            return int(m.group(1)) * 2 + 15      # each iteration: one probe + sleep 1
+    return default
 
 
 def _stdin_confirm(text: str) -> bool:

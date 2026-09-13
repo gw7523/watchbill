@@ -251,7 +251,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 if cls.role != "agent":
                     resume_argv = None
                 elif sess_val:
-                    resume_argv = resume.resume_argv(cls.kind, sess_val)
+                    resume_argv = resume.resume_argv(cls.kind, sess_val, cls.argv)
                 elif binding_argv:
                     resume_argv = binding_argv
                 elif not caps.native_resume and cls.kind:
@@ -259,7 +259,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                         resume_argv = None
                         resume_note = "continue-form ambiguous: another agent of this kind shares the cwd"
                     else:
-                        resume_argv = resume.continue_argv(cls.kind)
+                        resume_argv = resume.continue_argv(cls.kind, cls.argv)
                 else:
                     resume_argv = None
                 rp = prompts.resolve(human_id=human_id, slot_id=slot_id, role=cls.role, kind=cls.kind,

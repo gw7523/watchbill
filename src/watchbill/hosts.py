@@ -34,8 +34,10 @@ from pathlib import Path
 TRANSPORTS = ("local", "ssh_cli", "ssh_socket", "herdr_remote")
 MUXES = ("herdr", "tmux", "cmux")
 
-# UNVERIFIED-0.8.2: headless session start. See docs/herdr-0.8.2-facts.md.
-DEFAULT_START = "herdr --session {session} server"
+# Verified 2026-09-13: `herdr --session S server` runs in the FOREGROUND.
+# Spawned directly, exec would block until its timeout and then kill the
+# server it had just started, so the default start detaches it.
+DEFAULT_START = "setsid -f herdr --session {session} server </dev/null >/dev/null 2>&1"
 DEFAULT_ATTACH = "herdr session attach {session}"
 
 

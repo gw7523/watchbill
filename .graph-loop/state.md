@@ -47,6 +47,24 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   → five herdr corrections, each now pinned by a test
 - CLOSE → run record appended
 
+## Lane 3 (rehearsal: park → stop → start → resume on an isolated session): OPEN
+- Human gate: "start the development" (2026-09-13), after agreeing the local isolated rehearsal before ser6.
+- SUCCESS: a real haiku Claude in an isolated `wbrehearse` herdr session on rig2 is parked, the session
+  is stopped, Watchbill brings the session back, resumes the SAME conversation with its original flags,
+  and the resumed agent answers a question only the original conversation knows (a codeword).
+- PROVE: the codeword appears in the resumed pane (`pane read --source visible`); agent_session.value
+  unchanged across the cycle.
+- GATE: uv run pytest -q
+- Isolation: rehearsal runs with XDG_CONFIG/DATA/STATE_HOME in a scratch dir and its own hosts.toml naming
+  only the `wbrehearse` session; the `default` session is never in its roster.
+- Budget: 3 attempts per failure cause; a failure that could touch `default` is STOP + escalate.
+- Pre-run findings (probe/read, fixed before the run):
+  1. `herdr --session S server` stays in the FOREGROUND (exec would block, then kill it on timeout) → start with `setsid -f`
+  2. status on a stopped session is rc=0 + `"running":false` → the start wait must poll for running:true
+  3. resume argv dropped the agent's original flags (e.g. --dangerously-skip-permissions, --model)
+  4. exec used a fixed 30s subprocess timeout for steps whose own --timeout is 90s
+  5. the `reach` step used the mux status verb, which fails on a dead tmux server before `start` runs
+
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.

@@ -148,7 +148,8 @@ def test_tmux_continue_form_when_cwd_is_unique(tmux_facts, allowlist):
     sf.process_info["%2"] = M.TmuxBackend().parse_process_info(p2, "3345075 3345068 Ss  -bash\n3345102 3345075 S+  claude\n/home/u/Work/other\n")
     r = collect.build_roster("mixed", tmux_facts, slots=SlotStore(), allowlist=allowlist)
     a = r.by_human("mac/default/alpha/edit/p1")
-    assert a.resume_argv == ["claude", "--continue"]
+    # the agent's own flag is carried into the continue form
+    assert a.resume_argv == ["claude", "--dangerously-skip-permissions", "--continue"]
 
 
 def test_detect_heuristics():

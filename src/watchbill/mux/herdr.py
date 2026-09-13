@@ -162,6 +162,13 @@ class HerdrBackend:
     def wait_via(self) -> str:
         return "mux"
 
+    def server_up_poll(self, session: str, timeout_ms: int) -> list[str]:
+        """Wait until the session's server is really up. `status server --json`
+        exits 0 for a STOPPED session too (it prints `"running":false`), so
+        the exit code proves nothing; match the field."""
+        status = shlex.join(["herdr", "--session", session, "status", "server", "--json"])
+        return poll_loop(f"{status} | grep -q '\"running\":true'", timeout_ms=timeout_ms)
+
     def resolve_poll(self, session: str, argv: Sequence[str]) -> list[str]:
         """``[POLL, pane, "gone", timeout]`` → a shell loop that ends when the
         pane no longer hosts an agent."""

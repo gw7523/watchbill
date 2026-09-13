@@ -80,16 +80,21 @@ def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str,
         mux_step(plan, fleet, f"{tag}start", host.name, session,
                  f"start tmux server {session} with first session {first_label}",
                  *native, creates=creates_slot or f"boot:{host.name}/{session}")
-    elif native and not explicit_start:
-        # herdr: `herdr --session S server` is a verified headless start. A host
-        # that sets its own `start =` (Omarchy's systemd user unit) still wins.
-        mux_step(plan, fleet, f"{tag}start", host.name, session, f"start headless {be.name} server for session {session}", *native)
     else:
+        # herdr: the host's `start` (default: a detached `herdr --session S
+        # server`, since the bare command stays in the foreground). A host that
+        # names its own start, such as a systemd user unit, still wins.
         argv = ["sh", "-c", host.start_cmd(session)]
         plan.add(Step(id=f"{tag}start", kind=StepKind.SHELL, host=host.name, session=session, mux=host.mux,
                       description=f"start session {session} ({host.start_cmd(session)})", argv=tuple(argv),
                       raw=tuple(argv), mutating=True, via="shell"))
-    mux_step(plan, fleet, f"{tag}up", host.name, session, "wait for the server to answer", *be.status_argv(), kind=StepKind.WAIT)
+    up = be.server_up_poll(session, 20000) if hasattr(be, "server_up_poll") else None
+    if up:
+        plan.add(Step(id=f"{tag}up", kind=StepKind.WAIT, host=host.name, session=session, mux=host.mux,
+                      description="wait until the server reports running:true", argv=tuple(up), raw=tuple(up),
+                      mutating=False, via="shell"))
+    else:
+        mux_step(plan, fleet, f"{tag}up", host.name, session, "wait for the server to answer", *be.status_argv(), kind=StepKind.WAIT)
 
 
 def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_host: str | None,
@@ -134,8 +139,12 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
         host = fleet.host(host_name) or Host(name=host_name, transport="local")
         be = backend_of(fleet, host_name)
         p = f"{tag}{g}."
-        # 1. reach
-        mux_step(plan, fleet, f"{p}reach", host_name, session, f"reach host / {be.name} status", *be.status_argv())
+        # 1. reach the host. A transport check, not the mux's status verb: the
+        #    server may legitimately be down here (that is what step 2 fixes), and
+        #    tmux's status verb fails outright on a dead server.
+        plan.add(Step(id=f"{p}reach", kind=StepKind.SHELL, host=host_name, session=session, mux=host.mux,
+                      description="reach host", argv=("sh", "-c", "true"), raw=("sh", "-c", "true"),
+                      mutating=False, via="shell"))
         # 2. start if needed
         probe = probes.get(host_name)
         running = assume_running if assume_running is not None else (probe.running if probe else False)

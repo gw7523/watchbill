@@ -167,7 +167,9 @@ class FakeSession:
 
     def shell(self, argv, timeout=60.0):
         self.calls.append(("shell", *argv))
-        if not self.allow_mutation and not (argv[:2] == ["sh", "-c"] and "command -v" in argv[2]):
+        body = argv[2] if argv[:2] == ["sh", "-c"] and len(argv) > 2 else ""
+        readonly = body.strip() == "true" or "command -v" in body   # reach check / install probe
+        if not self.allow_mutation and not readonly:
             raise AssertionError(f"shell command reached the transport in dry-run: {argv}")
         return CmdResult(tuple(argv), 0, "")
 
