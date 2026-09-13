@@ -169,6 +169,7 @@ class FakeSession:
         self.calls.append(("shell", *argv))
         body = argv[2] if argv[:2] == ["sh", "-c"] and len(argv) > 2 else ""
         readonly = (body.strip() == "true" or "command -v" in body            # reach check / install probe
+                    or ": watchbill-readonly;" in body
                     or body.startswith(": watchbill-readonly;"))             # env / config probes
         if not self.allow_mutation and not readonly:
             raise AssertionError(f"shell command reached the transport in dry-run: {argv}")

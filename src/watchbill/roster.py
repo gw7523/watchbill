@@ -107,6 +107,10 @@ class Shape:
     session: str
     workspaces: list[dict] = field(default_factory=list)
     mux: str = "herdr"
+    # the server's display/desktop environment and whether it was started over
+    # ssh (see sessionenv.py). Additive, schema 1.
+    server_env: dict = field(default_factory=dict)
+    server_via_ssh: bool = False
 
 
 @dataclass

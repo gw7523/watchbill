@@ -108,6 +108,9 @@
         "host": { "type": "string" },
         "session": { "type": "string" },
         "mux": { "$ref": "#/$defs/mux" },
+        "server_env": { "type": "object", "additionalProperties": { "type": "string" },
+                        "description": "display/desktop variables of the multiplexer server (restored when Watchbill starts it)" },
+        "server_via_ssh": { "type": "boolean", "description": "the recorded server carried SSH_CONNECTION" },
         "workspaces": {
           "type": "array",
           "items": {

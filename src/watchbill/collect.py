@@ -40,6 +40,8 @@ class SessionFacts:
     bindings: dict[str, dict] = field(default_factory=dict)      # cmux: pane_id → surface resume binding
     agent_env: dict[str, tuple[dict, list]] = field(default_factory=dict)   # pane_id → (env allowlist, secret names)
     agent_disk: dict[str, dict] = field(default_factory=dict)    # pane_id → on-disk config probe result
+    server_env: dict[str, str] = field(default_factory=dict)     # the server's display/desktop env
+    server_via_ssh: bool = False
     error: str | None = None
     running: bool = True
     version: str | None = None
@@ -80,6 +82,7 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
         outs.append(r.stdout)
     snap = be.parse_snapshot(outs)
     facts.snapshot = snap
+    _gather_server_env(hs, be, snap, facts, status)
     for pane in snap.panes:
         pi_argv = be.process_info_argv(pane)
         if pi_argv:
@@ -102,6 +105,28 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
                 except ValueError:
                     pass
     return facts
+
+
+def _gather_server_env(hs: HostSession, be, snap, facts: SessionFacts, status) -> None:
+    """Record the server's display/desktop environment (read-only)."""
+    from . import sessionenv
+    argv = None
+    if be.name == "tmux" and (status.raw or {}).get("pid", "").isdigit():
+        argv = sessionenv.server_env_probe_argv(server_pid=int(status.raw["pid"]))
+    elif be.name == "herdr" and snap.panes:
+        first = snap.panes[0]
+        r = hs.mux(*be.process_info_argv(first)) if be.process_info_argv(first) else None
+        try:
+            shell_pid = be.parse_process_info(first, r.stdout).get("shell_pid") if r is not None and r.ok else None
+        except ValueError:
+            shell_pid = None
+        if shell_pid:
+            argv = sessionenv.server_env_probe_argv(shell_pid=int(shell_pid))
+    if not argv:
+        return
+    got = hs.shell(argv)
+    if got.ok:
+        facts.server_env, facts.server_via_ssh = sessionenv.parse_server_env(got.stdout)
 
 
 def _agent_pid(kind: str | None, pinfo: dict | None) -> int | None:
@@ -228,7 +253,8 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 continue
             snap = sf.snapshot if isinstance(sf.snapshot, MuxSnapshot) else snapshot_from_herdr(sf.snapshot)
             ws_labels = _dedupe_workspace_labels(snap)
-            shape = Shape(host=hf.host, session=sf.name, mux=hf.mux)
+            shape = Shape(host=hf.host, session=sf.name, mux=hf.mux, server_env=dict(sf.server_env),
+                          server_via_ssh=sf.server_via_ssh)
             ws_shapes: dict[str, dict] = {}
             for ws in sorted(snap.workspaces, key=lambda w: w.number or 0):
                 ws_shapes[ws.workspace_id] = {"label": ws_labels[ws.workspace_id], "number": ws.number,

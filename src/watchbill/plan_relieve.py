@@ -209,7 +209,8 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
             for i, s in enumerate(sessions, 1):
                 shp = roster.shape_for(hn, s)
                 fw = shp.workspaces[0] if shp and shp.workspaces else {}
-                start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.", first_label=fw.get("label", "watchbill"), cwd=fw.get("cwd") or "~")
+                start_steps(plan, fleet, host, s, tag=f"{tag}set{i}.", first_label=fw.get("label", "watchbill"),
+                            cwd=fw.get("cwd") or "~", server_env=shp.server_env if shp else None)
                 attach_steps(plan, fleet, host, s, cockpit_host=opts.cockpit_host, self_pane=opts.self_pane, tag=f"{tag}set{i}.")
         # 9. journal
         plan.add(Step(id=f"{tag}done", kind=StepKind.JOURNAL, host=hn, description="set-complete", mutating=True))

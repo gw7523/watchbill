@@ -61,7 +61,7 @@ def _live_ids(live: Roster | None, o: Occupant) -> Occupant | None:
 
 def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str, first_label: str = "watchbill",
                 cwd: str = "~", creates_slot: str | None = None, first_window: str | None = None,
-                first_env: dict | None = None) -> None:
+                first_env: dict | None = None, server_env: dict | None = None) -> None:
     """Start a session. herdr: the host's `start` capability (systemd unit on
     Omarchy; the built-in default is UNVERIFIED-0.8.2). tmux: `new-session -d`
     (verified). cmux: a MANUAL relaunch followed by `restore-session`."""
@@ -86,10 +86,16 @@ def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str,
         # herdr: the host's `start` (default: a detached `herdr --session S
         # server`, since the bare command stays in the foreground). A host that
         # names its own start, such as a systemd user unit, still wins.
-        argv = ["sh", "-c", host.start_cmd(session)]
+        # Start the server as a desktop-session service: the user's live session
+        # environment (display, desktop, bus), the recorded one as fallback, and
+        # never the ssh connection Watchbill itself arrived on. sessionenv.py.
+        from .sessionenv import start_prelude
+        body = start_prelude(server_env) + host.start_cmd(session)
+        argv = ["sh", "-c", body]
+        shown = ", ".join(f"{k}={v}" for k, v in sorted((server_env or {}).items()) if k in ("WAYLAND_DISPLAY", "DISPLAY")) or "none recorded"
         plan.add(Step(id=f"{tag}start", kind=StepKind.SHELL, host=host.name, session=session, mux=host.mux,
-                      description=f"start session {session} ({host.start_cmd(session)})", argv=tuple(argv),
-                      raw=tuple(argv), mutating=True, via="shell"))
+                      description=f"start session {session} with the user's session env (recorded: {shown}; no SSH_*)",
+                      argv=tuple(argv), raw=tuple(argv), mutating=True, via="shell"))
     up = be.server_up_poll(session, 20000) if hasattr(be, "server_up_poll") else None
     if up:
         plan.add(Step(id=f"{tag}up", kind=StepKind.WAIT, host=host.name, session=session, mux=host.mux,
@@ -173,7 +179,8 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
             start_steps(plan, fleet, host, session, tag=p, first_label=(first_ws or {}).get("label", "watchbill"),
                         cwd=(first_ws or {}).get("cwd") or "~", creates_slot=booted_slot,
                         first_window=(first_tab or {}).get("label"),
-                        first_env=agentconfig.restore_env(booted_occ.agent_config) if booted_occ else None)
+                        first_env=agentconfig.restore_env(booted_occ.agent_config) if booted_occ else None,
+                        server_env=shape.server_env if shape else None)
         # 3. viewport
         if not skip_attach:
             attach_steps(plan, fleet, host, session, cockpit_host=cockpit_host, self_pane=self_pane, tag=p)

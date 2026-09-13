@@ -84,7 +84,9 @@ def test_starts_session_when_probe_says_down(roster, fleet, probes):
     down["ser6"] = probes["ser6"].__class__(**{**probes["ser6"].__dict__, "running": False})
     p = plan_set(roster, fleet, opts(down, targets=[SER6_BLOCKED]))
     start = next(s for s in p.steps if s.id.endswith("start") and s.kind.value == "shell")
-    assert start.raw == ("sh", "-c", "systemctl --user start herdr.service") and start.mutating
+    # the host's own start command runs last, after the session-environment prelude
+    assert start.raw[:2] == ("sh", "-c") and start.raw[2].endswith("systemctl --user start herdr.service") and start.mutating
+    assert start.raw[2].startswith("unset SSH_CONNECTION")
 
 
 def test_extra_tabs_use_tab_create(roster, fleet, probes, fleet_json, allowlist):
