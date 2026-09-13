@@ -183,7 +183,8 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
                 # (tmux demo, 2026-09-13).
                 mux_step(plan, fleet, f"{prefix}{n}clr", o, o.session, "clear any pending input", *clear)
             mux_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"type {text} into {o.kind}",
-                     *be.send_text(pid, text), unverified=not verified)
+                     *be.send_text(pid, text), unverified=not verified,
+                     precondition=("claude remote control disconnected" if o.kind == "claude" else None))
             mux_step(plan, fleet, f"{prefix}{n}b", o, o.session, "press enter", *be.send_enter(pid))
             mux_step(plan, fleet, f"{prefix}{n}c", o, o.session, "wait for the agent to exit (pane back at shell)",
                      *be.agent_wait_exit(pid, o.kind, 20000), kind=StepKind.WAIT, unverified=heur)

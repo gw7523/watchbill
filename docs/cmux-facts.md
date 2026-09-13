@@ -1,5 +1,19 @@
 # cmux facts Watchbill relies on
 
+> **Superseded in part (2026-09-13).** The installed cmux CLI on the Mac mini
+> (`cmux --help`) differs from the published reference this file was written
+> from. Verified from that help, not yet live (the app was not running):
+> the socket defaults to `~/.local/state/cmux/cmux.sock` (not `/tmp/cmux.sock`);
+> socket auth takes `--password`, then `CMUX_SOCKET_PASSWORD`, then Settings;
+> the model is window → workspace → pane → surface (`list-panes`,
+> `list-pane-surfaces --pane`, `tree`); `read-screen` and `capture-pane` exist,
+> so screen reads are available; `new-workspace --name --cwd --command --layout`
+> takes a label, cwd and layout; `top --processes --format tsv` lists processes;
+> `new-pane`, `new-surface`, `close-surface`, `rename-workspace`,
+> `reload-config`, `restore <kind> <checkpoint-id>` and `agent-hibernation` exist.
+> The cmux backend still reflects the older, narrower reference and fails
+> closed; rewriting it needs the app running and socket access from SSH.
+
 cmux (cmux.com, `manaflow-ai/cmux`) is a native macOS Swift/AppKit terminal
 multiplexer for coding agents. It is **not** installable on the Linux
 cockpit, so every fact here is **docs-verified** (CLI reference at

@@ -70,6 +70,14 @@ def _is_python_module(argv: Sequence[str], module: str) -> bool:
     return len(argv) >= 3 and _basename(argv[0]).startswith("python") and argv[1] == "-m" and argv[2] == module
 
 
+def _agent_argv(kind: str, argvs: list[tuple[str, ...]]) -> tuple[str, ...] | None:
+    exe = AGENT_KINDS.get(kind, kind)
+    for av in argvs:
+        if av and (_basename(av[0]) == exe or (_basename(av[0]) in INTERPRETERS and len(av) > 1 and _basename(av[1]) == exe)):
+            return av
+    return None
+
+
 def classify(pane: dict, process_info: dict | None) -> Classification:
     """Classify one pane. ``pane`` is a snapshot/agent-list pane object."""
     argvs = _foreground_argvs(process_info)
@@ -84,7 +92,11 @@ def classify(pane: dict, process_info: dict | None) -> Classification:
     # 2. agent: Herdr detection first, then argv.
     detected = pane.get("agent")
     if detected:
-        return Classification("agent", kind=detected, argv=primary, cmdline=cmdline, reason="herdr detected agent")
+        # The foreground group can start with a helper: Claude on macOS runs
+        # `caffeinate -i -t 300` while working (Mac mini, 2026-09-13), and taking
+        # that as the agent's command line lost its flags on resume.
+        own = _agent_argv(detected, argvs) or primary
+        return Classification("agent", kind=detected, argv=own, cmdline=" ".join(own), reason="herdr detected agent")
     for av in argvs:
         exe = _basename(av[0]) if av else ""
         if exe in _EXE_TO_KIND:

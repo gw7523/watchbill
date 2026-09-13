@@ -22,7 +22,8 @@ from .base import CmdResult, backend_for, mux_prefix, run_argv
 def ssh_prefix(host: Host) -> list[str]:
     if not host.target:
         raise ValueError(f"host {host.name}: ssh_cli transport needs a target")
-    return ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={host.connect_timeout}", host.target, "--"]
+    return ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={host.connect_timeout}", *host.ssh_options,
+            host.target, "--"]
 
 
 class SshCliSession:

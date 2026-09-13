@@ -107,3 +107,57 @@ def test_viewport_attach_is_opt_in(roster, fleet, probes):
     assert any(s.id.endswith("att2") for s in plan_set(roster, fleet, SetOptions(**opts)).steps)     # opted in (conftest)
     fleet.host("ser6").mux_options = {}
     assert not any("att" in s.id for s in plan_set(roster, fleet, SetOptions(**opts)).steps)         # default: no viewport
+
+
+def test_tmux_process_probe_is_portable_and_always_succeeds():
+    be = mux.get("tmux")
+    body = be.process_info_argv(mux.MuxPane(pane_id="%0", workspace_id="$0", tab_id="@0", pid=89151, tty="/dev/ttys006"))[2]
+    assert "--sort" not in body and "lsof -a -p" in body and body.rstrip().endswith("true")
+    # BSD ps output as captured on the Mac mini (macOS 26.4), then the lsof cwd line
+    out = "89151 89150 Ss   -bash\n89538 89151 S+   claude --model haiku --dangerously-skip-permissions\n/private/tmp/wb-mac-t\n"
+    info = be.parse_process_info(mux.MuxPane(pane_id="%0", workspace_id="$0", tab_id="@0", pid=89151, tty="/dev/ttys006", cwd="/tmp"), out)
+    assert info["foreground_processes"][0]["argv"][0] == "claude" and info["foreground_processes"][0]["cwd"] == "/private/tmp/wb-mac-t"
+
+
+def test_the_agent_argv_is_the_agents_own_process_not_a_helper():
+    pi = {"foreground_processes": [
+        {"argv": ["caffeinate", "-i", "-t", "300"], "cmdline": "", "cwd": "/tmp", "name": "caffeinate", "pid": 1},
+        {"argv": ["claude", "--model", "haiku", "--dangerously-skip-permissions"], "cmdline": "", "cwd": "/tmp", "name": "2.1.270", "pid": 2}]}
+    c = classify({"pane_id": "w1:p1", "agent": "claude"}, pi)
+    assert c.argv[0] == "claude" and "--dangerously-skip-permissions" in c.argv
+
+
+def test_remote_control_refuses_by_default_and_disconnects_when_opted_in(fleet, tmp_path):
+    from watchbill import exec as X
+    from watchbill.journal import Journal
+    from watchbill.plan import Plan, Step, StepKind
+    from watchbill.transport.base import CmdResult
+
+    class RC:
+        backend = mux.get("herdr")
+        def __init__(self): self.calls, self.active = [], True
+        def mux(self, *a, timeout=30.0):
+            self.calls.append(a)
+            if a[:2] == ("pane", "read"):
+                return CmdResult(a, 0, "❯\n  ⏸ manual mode on · ? for shortcuts" + ("   /rc active" if self.active else ""))
+            if a[:2] == ("pane", "send-keys") and a[-1] == "enter" and ("pane", "send-keys", a[2], "up") in self.calls:
+                self.active = False
+            return CmdResult(a, 0, "{}")
+        def shell(self, argv, timeout=60.0): return CmdResult(tuple(argv), 0, "")
+    def plan():
+        p = Plan(verb="secure", fleet="t", approved=True)
+        p.add(Step(id="park", kind=StepKind.HERDR, host="ser6", session="s", description="/exit", slot_id="S",
+                   raw=("pane", "send-text", "w1:p1", "/exit"), via="mux", mutating=True,
+                   precondition="claude remote control disconnected"))
+        return p
+    fake = RC()
+    res = X.Executor(fleet, Journal(tmp_path / "a"), run_id="1", session_factory=lambda h, s: fake, out=lambda *_: None,
+                     sleep=lambda s: None).run(plan())
+    assert res.failed and "Remote Control is connected" in res.failed[0]
+    assert ("pane", "send-text", "w1:p1", "/exit") not in fake.calls                       # nothing typed
+    fleet.host("ser6").mux_options = {"disconnect_remote_control": True}
+    fake2 = RC()
+    res = X.Executor(fleet, Journal(tmp_path / "b"), run_id="2", session_factory=lambda h, s: fake2, out=lambda *_: None,
+                     sleep=lambda s: None).run(plan())
+    assert not res.failed and ("pane", "send-text", "w1:p1", "/rc") in fake2.calls
+    assert fake2.calls.index(("pane", "send-text", "w1:p1", "/rc")) < fake2.calls.index(("pane", "send-text", "w1:p1", "/exit"))

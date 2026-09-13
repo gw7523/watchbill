@@ -144,7 +144,7 @@ def attach_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, cockpit_
     if host.transport == "local":
         cmd = ["sh", "-c", attach]
     else:
-        cmd = ["ssh", "-tt", "-o", "BatchMode=yes", host.target or host.name, "--", attach]
+        cmd = ["ssh", "-tt", "-o", "BatchMode=yes", *host.ssh_options, host.target or host.name, "--", attach]
     mux_step(plan, fleet, f"{tag}att2", cockpit.name, cockpit.sessions[0],
              f"#2064 viewport: attach a client to {host.name}/{session}",
              *cbe.pane_run(f"{{pane:{key}}}", cmd, "~"), placeholders=True)
@@ -319,10 +319,10 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                 if be.name != "herdr":
                     # send-keys -l of a multi-line string submits at every newline.
                     text = " ".join(ln.strip() for ln in text.splitlines() if ln.strip())
-                clear = be.clear_input(target)
+                clear = be.clear_input(pane_tok)       # a pane verb: the pane, never the agent name
                 if clear:
                     mux_step(plan, fleet, f"{p}{name}.clr", o, session, "clear any pending input before the prompt",
-                             *clear, placeholders=tph)
+                             *clear, placeholders=ph)
                 for j, argv in enumerate(be.agent_prompt(target, text)):
                     mux_step(plan, fleet, f"{p}{name}.prompt" + (f".{j}" if j else ""), o, session,
                              f"prompt ({o.resume_prompt.source}); " + ("Herdr rejects blocked agents with agent_blocked"

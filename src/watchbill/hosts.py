@@ -26,6 +26,7 @@ rows; schema stays 1 and nothing here calls ``herdr machine``.
 """
 from __future__ import annotations
 
+import os
 import socket
 import tomllib
 from dataclasses import dataclass, field
@@ -63,6 +64,10 @@ class Host:
     # the target, e.g. ["distrobox", "enter", "sfl", "--"]. The same Watchbill
     # then manages a seat on this machine or on another one over ssh.
     exec_prefix: list[str] = field(default_factory=list)
+    # ssh_options: extra ssh arguments for this host, e.g. ["-i", "~/.ssh/id_x"]
+    # when the target is an address with no ~/.ssh/config entry. Watchbill
+    # never edits ~/.ssh itself.
+    ssh_options: list[str] = field(default_factory=list)
     # exclude: globs matched against an occupant's command line and human_id.
     # A match is catalogued but never parked, relaunched or restored, and a
     # window that would stop or close what it runs in is refused.
@@ -129,6 +134,9 @@ def parse(text: str, *, hostname: str | None = None) -> Fleet:
             raise ValueError(f"host {h['name']}: exec_prefix must be a list of strings")
         if exec_prefix and transport == "herdr_remote":
             raise ValueError(f"host {h['name']}: herdr_remote cannot run inside an exec_prefix; use ssh_cli")
+        ssh_options = h.get("ssh_options", [])
+        if not isinstance(ssh_options, list) or not all(isinstance(t, str) for t in ssh_options):
+            raise ValueError(f"host {h['name']}: ssh_options must be a list of strings")
         exclude = h.get("exclude", [])
         if not isinstance(exclude, list) or not all(isinstance(t, str) for t in exclude):
             raise ValueError(f"host {h['name']}: exclude must be a list of glob strings")
@@ -142,6 +150,7 @@ def parse(text: str, *, hostname: str | None = None) -> Fleet:
             herdr_bin=h.get("herdr_bin", "herdr"), connect_timeout=int(h.get("connect_timeout", 5)),
             mux=mux, mux_options=dict(h.get("mux_options", {})),
             exec_prefix=list(exec_prefix), exclude=list(exclude), ignore=list(ignore),
+            ssh_options=[os.path.expanduser(t) for t in ssh_options],
         ))
     if hostname and not any(x.cockpit for x in hosts):
         # If the running machine is listed by name, it is the cockpit.

@@ -102,9 +102,15 @@ class TmuxBackend:
     def process_info_argv(self, pane: MuxPane) -> list[str] | None:
         if not pane.tty:
             return None
-        tty = pane.tty.removeprefix("/dev/")
-        return ["sh", "-c", f"ps -t {shlex.quote(tty)} -o pid=,ppid=,stat=,args= 2>/dev/null; "
-                            f"readlink /proc/$(ps -t {shlex.quote(tty)} -o pid= --sort=-pid | head -1)/cwd 2>/dev/null"]
+        tty = shlex.quote(pane.tty.removeprefix("/dev/"))
+        # Portable across GNU and BSD: no `ps --sort`, and the cwd comes from
+        # /proc on Linux or lsof on macOS. It must exit 0: on macOS the old
+        # Linux-only tail failed, the probe exited 1, and the collector threw
+        # away a process list that had worked (Mac mini, 2026-09-13).
+        return ["sh", "-c",
+                f"ps -t {tty} -o pid=,ppid=,stat=,args= 2>/dev/null; "
+                f"p=$(ps -t {tty} -o pid=,stat= 2>/dev/null | awk '$2 ~ /\\+/ {{print $1}}' | tail -1); "
+                f'[ -n "$p" ] && {{ readlink /proc/$p/cwd 2>/dev/null || lsof -a -p "$p" -d cwd -Fn 2>/dev/null | sed -n "s/^n//p"; }}; true']
 
     def parse_process_info(self, pane: MuxPane, stdout: str) -> dict:
         """``ps`` rows; foreground = STAT contains ``+``. Last line may be the

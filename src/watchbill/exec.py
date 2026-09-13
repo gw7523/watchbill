@@ -172,9 +172,41 @@ class Executor:
         lines = [ln.strip() for ln in (got.stdout or "").splitlines() if ln.strip()][-4:]
         return (" | pane: " + " / ".join(lines)) if lines else ""
 
+    RC_ACTIVE = re.compile(r"/rc active|Remote Control active")
+
+    def _remote_control(self, step: Step, hs: HostSession, raw: tuple[str, ...]) -> str | None:
+        """A Claude with Remote Control connected ignores /exit and Ctrl-C
+        (Claude Code 2.1.270, macOS, 2026-09-13); a park would then wait out
+        its timeout. Refuse with the reason, or, where the host opts in with
+        mux_options.disconnect_remote_control = true, disconnect it through the
+        /rc dialog first. Only when the screen shows it is active: /rc on a
+        disconnected session would CONNECT it."""
+        be = hs.backend
+        pane = raw[2] if be.name == "herdr" else (raw[raw.index("-t") + 1] if "-t" in raw else None)
+        argv = be.excerpt_argv(pane, 15) if pane else None
+        if not argv:
+            return None
+        screen = hs.mux(*argv).stdout
+        if not self.RC_ACTIVE.search(screen or ""):
+            return None
+        host = self.fleet.host(step.host)
+        if not (host and host.mux_options.get("disconnect_remote_control")):
+            return ("Claude Remote Control is connected, so /exit will not stop this agent. Disconnect it "
+                    "(/rc → Disconnect this session) or set mux_options.disconnect_remote_control = true")
+        up, enter = (("pane", "send-keys", pane, "up"), ("pane", "send-keys", pane, "enter")) if be.name == "herdr" \
+            else (("send-keys", "-t", pane, "Up"), ("send-keys", "-t", pane, "Enter"))
+        hs.mux(*be.send_text(pane, "/rc")); hs.mux(*enter); self.sleep(2)
+        hs.mux(*up); hs.mux(*up); self.sleep(0.3); hs.mux(*enter); self.sleep(2)   # "Disconnect this session"
+        if self.RC_ACTIVE.search(hs.mux(*argv).stdout or ""):
+            return "tried to disconnect Claude Remote Control, but the screen still shows it active"
+        self.out(f"  disconnected Claude Remote Control on {step.human_id or pane} before parking")
+        return None
+
     def _check_precondition(self, step: Step, hs: HostSession, raw: tuple[str, ...]) -> str | None:
         """Pitfall 12: never prompt a blocked agent. Herdr rejects it too, but
         we ask first so the plan stops cleanly instead of on an error."""
+        if step.precondition == "claude remote control disconnected":
+            return self._remote_control(step, hs, raw)
         if step.precondition != "agent_status != blocked":
             return None
         be = hs.backend
@@ -337,7 +369,16 @@ class Executor:
             res = hs.shell(list(raw), timeout=step_timeout(raw, 60.0))
             if step.creates:
                 self._record_created(step, res, result.pane_map, hs)   # e.g. tmux new-session inside the prelude
-            return None if res.ok else (res.stderr.strip() or f"exit {res.returncode}")
+            if res.ok:
+                return None
+            err = res.stderr.strip() or f"exit {res.returncode}"
+            if step.kind is StepKind.WAIT and step.slot_id:
+                # an agent that would not exit usually says why on screen
+                m = re.search(r"agent get (\S+)|-t (\S+) -p", raw[-1] if raw else "")
+                pane = next((g for g in (m.groups() if m else ()) if g), None)
+                if pane:
+                    err += self._pane_tail(hs, ("--pane", pane))
+            return err
         if via == "local":
             cp = self.local_runner(list(raw), capture_output=True, text=True)
             return None if cp.returncode == 0 else (cp.stderr.strip() or f"exit {cp.returncode}")

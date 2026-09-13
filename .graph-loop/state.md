@@ -155,9 +155,17 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - Test agents: transcripts live under ~/.claude/projects/-tmp-* and ~/.grok/sessions/%2Ftmp%2F* (not in /tmp);
   they age out with each tool's retention. Trust was accepted for /tmp/wb-tmux-a (rig2) and /tmp/wb-hooktest (ser6).
 
+## Lane 7 (owner: proceed; Mac mini over Tailscale; containers for agents without accounts): IN PROGRESS
+- #2064 viewport now opt-in (mux_options.attach_before_resume).
+- Mac mini (holloway@100.105.4.100, ssh_options -i personal key): docs/macos-facts.md. herdr 0.9 (protocol 22)
+  green 4 runs via a launchd GUI-domain throwaway job; tmux over SSH green 2 runs (mechanics; agent logged out).
+  Fixed live: ssh_options; BSD/macOS tmux process probe; agent argv from its own process (caffeinate); herdr pre-prompt
+  clear by pane; Claude Remote Control park guard + opt-in disconnect. Cleaned up: test agent exited, wbmac servers
+  stopped, launchd job booted out, plist removed.
+- cmux: installed CLI differs from the published docs (cmux-facts.md note). App not running; not probed live.
+- Next in this lane: temp container with a local model for codex + opencode; flag tables for gemini + cursor.
+
 ## Next lane (not started)
-- Make the #2064 viewport step opt-in (never needed: claude + grok, herdr local + ssh).
-- tmux over SSH on a Mac; cmux probe on a Mac (every cmux verb is still docs-only).
 - Park commands still unverified: codex (/quit), gemini, cursor, opencode, hermes.
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.
