@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .roster import now_iso
 
-STATUSES = ("planned", "dry-run", "ok", "fail", "skipped", "refused", "set-complete", "host-start", "host-done")
+STATUSES = ("planned", "dry-run", "ok", "fail", "skipped", "refused", "set-complete", "set-partial", "host-start", "host-done")
 
 
 @dataclass

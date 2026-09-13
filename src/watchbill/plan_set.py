@@ -244,6 +244,7 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                             mux_step(plan, fleet, f"{p}layout.{ws['label']}.{t['label']}", host_name, session,
                                      f"re-apply the recorded {be.name} layout for {ws['label']}:{t['label']}", *lay)
         # 5–8. occupants
+        restore_from = len(plan.steps)
         for o in occs:
             pane_tok = f"{{pane:{o.slot_id}}}" if o.slot_id in created or live is None else (
                 (_live_ids(live, o) or o).live_ids.pane_id or f"{{pane:{o.slot_id}}}")
@@ -312,6 +313,9 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                                  *be.send_enter(pane_tok), placeholders=ph, unverified=True)
                 else:
                     plan.notes.append(f"{o.human_id}: {o.role} not in allowlist; pane restored, command not relaunched")
+        # each occupant's steps fail on their own once the session is back up
+        from dataclasses import replace as _replace
+        plan.steps[restore_from:] = [_replace(s, phase="restore") if s.slot_id else s for s in plan.steps[restore_from:]]
         # 9. bookkeeping
         plan.add(Step(id=f"{p}ids", kind=StepKind.JOURNAL, host=host_name, session=session,
                       description="rewrite live_ids for restored slots", mutating=True))

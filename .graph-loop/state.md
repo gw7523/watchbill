@@ -109,6 +109,15 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   resume each with recorded config, --no-prompt (never inject text into real conversations).
   PROVE: each agent's agent_session unchanged and argv flags identical before/after.
 - Budget: 3 attempts per cause; any failure mid-step-B → stop, report with the journal, recover by hand.
+- Step A result: 3 runs over SSH on ser6 wbrehearse. Run 1 failed at Grok's resume prompt (agent_prompt_stalled:
+  freshly resumed Grok dropped the submission) → exec retries a stalled prompt once after settling. Runs 2 and 3:
+  29 steps, 0 failed. PROVE: Claude same session + flags all runs, codeword answered twice. Grok same session +
+  flags all runs, codeword answered conclusively once (run 3's answer not distinguished before cleanup).
+  Grok `/exit` park verified live. Remote setsid start clean (no session-identity env).
+  Found, not ours: ser6 `~/.local/bin/tl-context-guard` is a dangling symlink (token-lean moved out of
+  personal-config) while ser6 Claude settings call it on every prompt.
+- Step B config: separate WATCHBILL_HOME naming only ser6 default (no cockpit → no viewport split on rig2),
+  --no-prompt.
 
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale

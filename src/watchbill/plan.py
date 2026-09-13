@@ -165,6 +165,10 @@ class Step:
     # session.json) may already have that pane; exec takes it instead of
     # creating a duplicate.
     reuse: dict | None = None
+    # phase "restore": a per-occupant step after the session is back up
+    # (config check, agent start, wait, prompt, relaunch). Its failure costs
+    # only that occupant, not every later occupant on the host.
+    phase: str = ""
 
     @property
     def verb(self) -> tuple[str, ...]:

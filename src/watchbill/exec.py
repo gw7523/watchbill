@@ -46,7 +46,8 @@ class ExecResult:
 
 class Executor:
     def __init__(self, fleet: Fleet, journal: Journal, *, run_id: str, force_server_stop: bool = False,
-                 session_factory=make_session, local_runner=subprocess.run, out=print, confirm=None):
+                 session_factory=make_session, local_runner=subprocess.run, out=print, confirm=None,
+                 sleep=None, prompt_settle_s: float = 5.0):
         self.fleet = fleet
         self.journal = journal
         self.run_id = run_id
@@ -57,6 +58,9 @@ class Executor:
         # MANUAL steps: the operator does something by hand (quit/relaunch cmux). `confirm(text)`
         # returns True when they say so; default reads a line from stdin, non-interactive → False.
         self.confirm = confirm or _stdin_confirm
+        import time as _time
+        self.sleep = sleep or _time.sleep
+        self.prompt_settle_s = prompt_settle_s
         self._restored: dict[tuple[str, str], object] = {}   # (host, session) → MuxSnapshot, read once
         self._claimed: set[str] = set()                        # restored pane ids already taken
         self._sessions: dict[tuple[str, str], HostSession] = {}
@@ -227,11 +231,17 @@ class Executor:
             return result
         scheduled = {id(s) for s in plan.scheduled()}
         failed_hosts: set[str] = set()
+        self._failed_slots: dict[str, set[str]] = {}
         for step in plan.steps:
             if step.host in failed_hosts:
                 result.skipped += 1
                 j.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status="skipped",
                          detail="earlier step on this host failed")
+                continue
+            if step.slot_id and step.slot_id in self._failed_slots.get(step.host, set()):
+                result.skipped += 1
+                j.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status="skipped",
+                         detail="an earlier step for this occupant failed", slot_id=step.slot_id)
                 continue
             if id(step) not in scheduled:
                 result.dry += 1
@@ -246,7 +256,9 @@ class Executor:
                 result.failed.append(f"{step.host}:{step.id}: {err}")
                 j.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status="fail", detail=err)
                 self.out(f"FAIL {step.host} {step.id}: {err}")
-                if step.mutating or step.kind in (StepKind.WAIT, StepKind.CHECK):
+                if step.phase == "restore" and step.slot_id:
+                    self._failed_slots.setdefault(step.host, set()).add(step.slot_id)
+                elif step.mutating or step.kind in (StepKind.WAIT, StepKind.CHECK):
                     failed_hosts.add(step.host)
             else:
                 result.ran += 1
@@ -272,6 +284,13 @@ class Executor:
         if step.kind is StepKind.JOURNAL:
             status = "set-complete" if step.description == "set-complete" else (
                 "host-start" if step.description.startswith("host-start") else "ok")
+            failed = sorted(getattr(self, "_failed_slots", {}).get(step.host, set()))
+            if status == "set-complete" and failed:
+                # not complete: `relieve --resume` must come back for these occupants
+                self.journal.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id,
+                                    status="set-partial", detail="occupants not restored: " + ", ".join(failed))
+                self.out(f"  {step.host}: {len(failed)} occupant(s) not restored; host left set-partial for --resume")
+                return None
             if status != "ok":
                 self.journal.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status=status)
             return None
@@ -290,6 +309,18 @@ class Executor:
                 if err:
                     return err
             res = hs.mux(*raw, timeout=step_timeout(raw, 30.0))
+            if (not res.ok and step.verb == ("agent", "prompt")
+                    and "agent_prompt_stalled" in (res.stderr + res.stdout)):
+                # Seen on ser6 (2026-09-13): a Grok freshly resumed with a long
+                # history reports idle while its TUI is still redrawing, and the
+                # submitted prompt is dropped (input box empty, no state change).
+                # Settle, make sure it has not become blocked, and submit once more.
+                self.out(f"  prompt stalled on {step.host}; settling {self.prompt_settle_s:g}s and retrying once")
+                self.sleep(self.prompt_settle_s)
+                err = self._check_precondition(step, hs, raw) if step.precondition else None
+                if err:
+                    return err
+                res = hs.mux(*raw, timeout=step_timeout(raw, 30.0))
             self._record_created(step, res, result.pane_map, hs)
             if not res.ok:
                 err = res.stderr.strip() or res.stdout.strip() or f"exit {res.returncode}"
