@@ -67,6 +67,11 @@ class Host:
     # A match is catalogued but never parked, relaunched or restored, and a
     # window that would stop or close what it runs in is refused.
     exclude: list[str] = field(default_factory=list)
+    # ignore: globs like `exclude`, but the occupant is NOT protected. It is
+    # never parked, relaunched or restored, yet a window may stop the session
+    # it runs in; the plan names what that will end. Use it for "out of scope,
+    # nothing critical" and `exclude` for "must survive".
+    ignore: list[str] = field(default_factory=list)
 
     def excludes(self, cmdline: str, human_id: str) -> str | None:
         """The first exclude glob that matches, or None."""
@@ -127,13 +132,16 @@ def parse(text: str, *, hostname: str | None = None) -> Fleet:
         exclude = h.get("exclude", [])
         if not isinstance(exclude, list) or not all(isinstance(t, str) for t in exclude):
             raise ValueError(f"host {h['name']}: exclude must be a list of glob strings")
+        ignore = h.get("ignore", [])
+        if not isinstance(ignore, list) or not all(isinstance(t, str) for t in ignore):
+            raise ValueError(f"host {h['name']}: ignore must be a list of glob strings")
         hosts.append(Host(
             name=h["name"], target=h.get("target"), transport=transport,
             sessions=list(h.get("sessions", ["default"])), cockpit=bool(h.get("cockpit", False)),
             start=h.get("start", DEFAULT_START), attach=h.get("attach", DEFAULT_ATTACH),
             herdr_bin=h.get("herdr_bin", "herdr"), connect_timeout=int(h.get("connect_timeout", 5)),
             mux=mux, mux_options=dict(h.get("mux_options", {})),
-            exec_prefix=list(exec_prefix), exclude=list(exclude),
+            exec_prefix=list(exec_prefix), exclude=list(exclude), ignore=list(ignore),
         ))
     if hostname and not any(x.cockpit for x in hosts):
         # If the running machine is listed by name, it is the cockpit.

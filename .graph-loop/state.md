@@ -97,6 +97,19 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   only, restart-harness REFUSED (would kill the excluded pane). nohup start form proven to detach on Linux.
 - Deliberately not done: any probe inside a distrobox (owner deferred it).
 
+## Lane 5 (ser6 live, owner-approved 2026-09-13): OPEN
+- Human gate: "approved to stop ser6 sessions (including herdr) to test. Nothing critical running there. Do not
+  (yet) upgrade herdr." → restart-harness only (no action commands); no upgrade-mux / omarchy-update.
+- Scope split: the distrobox pane moves from `exclude` (protected) to new `ignore` (never managed; may end when
+  its session stops; the plan says so). "Don't use the distrobox" still holds: never parked, never restored.
+- Step A: throwaway `wbrehearse` session ON ser6 over SSH, a haiku Claude AND a Grok (grok /exit unverified;
+  real grok runs on ser6). PROVE as lane 3, per agent. Unknowns it answers: remote detached start, PATH of
+  agents started by a server launched over non-interactive ssh, grok park/resume.
+- Step B: ser6 `default`, the real fleet: park 2 claude + 1 grok, stop session, start, reuse restored layout,
+  resume each with recorded config, --no-prompt (never inject text into real conversations).
+  PROVE: each agent's agent_session unchanged and argv flags identical before/after.
+- Budget: 3 attempts per cause; any failure mid-step-B → stop, report with the journal, recover by hand.
+
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale
   host, and a human decision to run a mutating verb with `--yes` against real agents.

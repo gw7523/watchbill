@@ -109,11 +109,11 @@ def select(roster: Roster, opts: SecureOptions) -> tuple[list[Occupant], list[Re
     notes: list[str] = []
     if not opts.targets:
         pool = [o for o in roster.occupants if opts.host is None or o.host == opts.host]
-        skipped_ex = [o for o in pool if o.excluded]
+        skipped_ex = [o for o in pool if o.excluded or o.ignored]
         if skipped_ex:
-            notes.append(f"skipped {len(skipped_ex)} excluded occupant(s): "
-                         + ", ".join(f"{o.human_id} [{o.excluded}]" for o in skipped_ex))
-            pool = [o for o in pool if not o.excluded]
+            notes.append(f"skipped {len(skipped_ex)} excluded/ignored occupant(s): "
+                         + ", ".join(f"{o.human_id} [{o.excluded or o.ignored}]" for o in skipped_ex))
+            pool = [o for o in pool if not (o.excluded or o.ignored)]
         if not opts.include_local and opts.cockpit_host:
             skipped = [o for o in pool if o.host == opts.cockpit_host]
             if skipped:
@@ -131,8 +131,9 @@ def select(roster: Roster, opts: SecureOptions) -> tuple[list[Occupant], list[Re
             refusals.append(Refusal(f"target {target!r} matches on hosts {sorted(hosts)}; pass --host", override="--host"))
             continue
         for o in hits:
-            if o.excluded:
-                refusals.append(Refusal(f"excluded by hosts.toml ({o.excluded}); lift the exclusion to act on it",
+            if o.excluded or o.ignored:
+                which = "excluded" if o.excluded else "ignored"
+                refusals.append(Refusal(f"{which} by hosts.toml ({o.excluded or o.ignored}); edit hosts.toml to act on it",
                                         host=o.host, human_id=o.human_id, slot_id=o.slot_id))
                 continue
             if o.host == opts.cockpit_host and not opts.include_local:
@@ -150,8 +151,8 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
     n = 0
     for o in occupants:
         pid = o.live_ids.pane_id or "?"
-        if o.excluded:
-            plan.notes.append(f"skip excluded {o.human_id} [{o.excluded}]")
+        if o.excluded or o.ignored:
+            plan.notes.append(f"skip {'excluded' if o.excluded else 'ignored'} {o.human_id} [{o.excluded or o.ignored}]")
             continue
         if o.host == cockpit_host and self_pane and pid == self_pane:
             plan.notes.append(f"skip self pane {o.human_id} ({pid})")
@@ -218,6 +219,8 @@ def plan_secure(roster: Roster, fleet: Fleet, opts: SecureOptions) -> Plan:
             if o.excluded and (o.host, o.session) in touched:
                 plan.refusals.append(Refusal(f"stopping session {o.session} would kill excluded {o.human_id} ({o.excluded})",
                                              host=o.host, human_id=o.human_id))
+            elif o.ignored and (o.host, o.session) in touched:
+                plan.notes.append(f"stopping session {o.session} ENDS ignored {o.human_id} ({o.ignored}); it is not restored")
     if opts.mode == "fold":
         wss = {(o.host, o.session, o.live_ids.workspace_id, o.workspace_label) for o in parked}
         for i, (h, s, wsid, label) in enumerate(sorted(wss, key=lambda x: (x[0], x[1], x[2] or "")), 1):

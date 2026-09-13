@@ -135,7 +135,7 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         # 2. park (never in live mode: handoff keeps the PTYs)
         kinds = action.park_kinds_for(host, probe)
         pool = [] if live else [o for o in roster.on_host(hn) if o.role in blast.park_roles
-                                and (kinds is None or o.kind in kinds) and not o.excluded]
+                                and (kinds is None or o.kind in kinds) and not (o.excluded or o.ignored)]
         parked = park_steps(plan, fleet, pool, force=opts.force, self_pane=opts.self_pane,
                             cockpit_host=opts.cockpit_host, prefix=f"{tag}park")
         sessions = sorted({o.session for o in roster.on_host(hn)} or set(host.sessions))
@@ -149,6 +149,10 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
                         f"{opts.action} stops session {o.session}, which would kill excluded {o.human_id} ({o.excluded})",
                         host=hn, human_id=o.human_id))
                 continue
+            for o in roster.on_host(hn):
+                if o.ignored and o.session in sessions:
+                    plan.notes.append(f"{hn}: stopping session {o.session} ENDS ignored {o.human_id} ({o.ignored}); "
+                                      "it is not restored")
         # 3. copy session.json aside (herdr persists; tmux does not, cmux saves on quit)
         if be.name == "herdr":
             for s in sessions:

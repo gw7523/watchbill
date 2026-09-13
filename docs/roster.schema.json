@@ -187,7 +187,8 @@
         "excerpt": { "type": ["string", "null"], "description": "cockpit-local; stripped unless snap.excerpt_sync" },
         "taken_at": { "type": "string" },
         "mux": { "$ref": "#/$defs/mux" },
-        "excluded": { "type": ["string", "null"], "description": "the hosts.toml exclude glob this occupant matched; catalogued but never parked, relaunched or restored" },
+        "excluded": { "type": ["string", "null"], "description": "the hosts.toml exclude glob this occupant matched; catalogued but never parked, relaunched or restored, and protected from windows that would stop it" },
+        "ignored": { "type": ["string", "null"], "description": "the hosts.toml ignore glob this occupant matched; never parked, relaunched or restored, but not protected: a session stop may end it" },
         "agent_config": {
           "description": "Launch configuration recorded while the agent ran (additive, schema 1). Per-process parts are restored on resume; on-disk parts are verified before the agent starts.",
           "oneOf": [

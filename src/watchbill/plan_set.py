@@ -248,8 +248,9 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
             pane_tok = f"{{pane:{o.slot_id}}}" if o.slot_id in created or live is None else (
                 (_live_ids(live, o) or o).live_ids.pane_id or f"{{pane:{o.slot_id}}}")
             ph = pane_tok.startswith("{")
-            if o.excluded:
-                plan.notes.append(f"{o.human_id}: excluded ({o.excluded}); not restored")
+            if o.excluded or o.ignored:
+                plan.notes.append(f"{o.human_id}: {'excluded' if o.excluded else 'ignored'} "
+                                  f"({o.excluded or o.ignored}); not restored")
                 continue
             if o.role == "bridge":
                 plan.notes.append(f"{o.human_id}: bridge (nested herdr) is never relaunched")

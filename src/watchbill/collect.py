@@ -56,6 +56,7 @@ class HostFacts:
     sessions: list[SessionFacts] = field(default_factory=list)
     error: str | None = None
     exclude: list[str] = field(default_factory=list)
+    ignore: list[str] = field(default_factory=list)
 
 
 # -- live gather (transport-backed, read-only) ----------------------------
@@ -158,7 +159,7 @@ def idle_after_map(fleet) -> dict[str, float]:
 
 
 def gather_host(host: Host, *, excerpts: bool = False) -> HostFacts:
-    hf = HostFacts(host=host.name, cockpit=host.cockpit, mux=host.mux, exclude=list(host.exclude))
+    hf = HostFacts(host=host.name, cockpit=host.cockpit, mux=host.mux, exclude=list(host.exclude), ignore=list(host.ignore))
     probed = False
     for name in host.sessions:
         hs = make_session(host, name)
@@ -326,6 +327,7 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                                                     env_captured=sf.__dict__.get("_env_captured", {}).get(pid, pid in sf.agent_env))
                                   if cls.role == "agent" else None),
                     excluded=_excluded(hf.exclude, cls.cmdline, human_id),
+                    ignored=None if _excluded(hf.exclude, cls.cmdline, human_id) else _excluded(hf.ignore, cls.cmdline, human_id),
                 )
                 roster.occupants.append(occ)
                 if wsid in ws_shapes and ws_shapes[wsid]["cwd"] is None:
