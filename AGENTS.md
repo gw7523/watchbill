@@ -57,6 +57,15 @@ uv run watchbill relieve upgrade-agents --host ser6 --probes-json tests/fixtures
   sandbox dies on `/run/containerd/containerd.sock`, so run the bridge with
   `run --write` and audit with `git status` afterwards.
 
+## Rehearsing against a live mux
+
+Rehearse destructive windows on an isolated **named session** on the cockpit,
+never on `default`: `WATCHBILL_HOME=<scratch>` plus a `hosts.toml` naming only
+that session. Prove the claim, not the exit code: same `agent_session` id,
+same launch argv, no duplicate workspaces, and the resumed agent answering
+something only its conversation knows. The first rehearsal (2026-09-13) found
+twelve real bugs that 150 unit tests had not; see `.graph-loop/state.md`.
+
 ## Rules that are easy to break
 
 - **Planners are pure, `exec.py` mutates, transports isolate SSH, actions
@@ -76,6 +85,10 @@ uv run watchbill relieve upgrade-agents --host ser6 --probes-json tests/fixtures
   `herdr --remote` as a default, or `agent prompt` to a blocked agent.
 - Never run `omarchy-update` without `-y` from a pane; it blocks on a confirm
   dialog. Never reboot the cockpit.
+- Never let a driving agent's session identity reach what Watchbill starts.
+  A mux server started from inside a Claude session makes every agent in it a
+  non-resumable child session. `transport.run_argv` scrubs this; do not add a
+  spawn path that bypasses it.
 - The skill file (`skills/watchbill/SKILL.md`) forbids `--force`,
   `--include-local`, `--allow-reboot` unless the human said the word. Keep
   it that way and keep `plugin/herdr-plugin.toml` free of `--yes`.

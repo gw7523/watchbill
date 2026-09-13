@@ -45,7 +45,20 @@ RESTORE_ENV = (
 # Recorded for the operator (drift display), never applied: the new pane's
 # shell rebuilds these itself.
 RECORD_ENV = ("HOME", "PATH", "SHELL", "LANG")
-SECRET_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH|COOKIE)", re.IGNORECASE)
+# Matched against underscore-separated name *segments*, so GIT_AUTHOR_NAME
+# (segment AUTHOR) is not a secret while GH_AUTH_TOKEN and
+# STARSHIP_SESSION_KEY are.
+SECRET_SEGMENTS = frozenset({"KEY", "APIKEY", "TOKEN", "SECRET", "SECRETS", "PASSWORD", "PASSWD", "PASS",
+                             "CREDENTIAL", "CREDENTIALS", "AUTH", "COOKIE", "PRIVATE"})
+
+
+class _SecretName:
+    @staticmethod
+    def search(name: str) -> bool:
+        return bool(set(name.upper().split("_")) & SECRET_SEGMENTS)
+
+
+SECRET_NAME = _SecretName()
 
 CONFIG_DIR_ENV = {"claude": "CLAUDE_CONFIG_DIR", "codex": "CODEX_HOME"}
 DEFAULT_CONFIG_DIR = {"claude": "~/.claude", "codex": "~/.codex", "grok": "~/.grok", "gemini": "~/.gemini",

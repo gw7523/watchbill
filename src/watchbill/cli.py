@@ -296,9 +296,12 @@ def cmd_set(args) -> int:
 def cmd_relieve(args) -> int:
     fleet = _fleet(args)
     cfg = _read_config()
-    ro = _load_current(fleet.name)
-    if ro is None:
-        ro, _down = _roll(fleet, args)
+    # Plan the window from a LIVE roll (merged with current.json for pins and
+    # identity), never from the file alone. Who is safe to park is a question
+    # about right now: rehearsal run 2 was refused because current.json had
+    # been written the instant after a resume prompt, when the agent was
+    # `working`; a minute later it was idle.
+    ro, _down = _roll(fleet, args)
     cockpit_host, self_pane = _cockpit(fleet)
     j = journal.Journal(paths.journal_file())
     run_id = new_ulid()

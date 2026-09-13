@@ -47,7 +47,7 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
   → five herdr corrections, each now pinned by a test
 - CLOSE → run record appended
 
-## Lane 3 (rehearsal: park → stop → start → resume on an isolated session): OPEN
+## Lane 3 (rehearsal: park → stop → start → resume on an isolated session): CLOSED — PROVE green twice
 - Human gate: "start the development" (2026-09-13), after agreeing the local isolated rehearsal before ser6.
 - SUCCESS: a real haiku Claude in an isolated `wbrehearse` herdr session on rig2 is parked, the session
   is stopped, Watchbill brings the session back, resumes the SAME conversation with its original flags,
@@ -77,6 +77,15 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
      created a duplicate workspace → exec reconciles creates against the restarted server by label
   10. agent start had no deadline of its own and raced exec's 30s timeout; a failed start now records the pane tail
   Classification: attempt 1 was partly INSTRUMENT (the harness polluted the subject) and partly real product bugs.
+
+- Attempt 2 → run 1 green (21 steps, 0 failed, 6s). Run 2 REFUSED: relieve planned from the post-set roster,
+  written while the resumed agent was `working` → 11. relieve now plans from a live roll. Also 12: secret-name
+  matching by substring flagged GIT_AUTHOR_NAME → segment match.
+- Attempt 2 run 2 (retried) → green. PROVE both runs: same agent_session 8cd76f33…, same argv
+  `claude --model haiku --dangerously-skip-permissions --resume 8cd76f33…`, one workspace, codeword recalled.
+- `default` session never addressed: every rehearsal argv carried `--session wbrehearse`. Session deleted after.
+- Owner added mid-lane: record prior configuration (permission mode, plugins/hooks, …) and resume with the same
+  config → agentconfig.py; proven by the argv check above.
 
 ## Next lane (not started)
 - MVP end-to-end across two boxes: needs `~/.config/watchbill/hosts.toml` naming a Tailscale

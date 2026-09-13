@@ -42,7 +42,19 @@ uv run pytest                # no live Herdr needed
 Config lives in `~/.config/watchbill/` (`hosts.toml`, `allowlist.txt`,
 `pins.toml`, `prompts/<role>.txt`, `config.toml`), rosters in
 `~/.local/share/watchbill/rosters/<fleet>/`, the journal in
-`~/.local/state/watchbill/journal.jsonl`.
+`~/.local/state/watchbill/journal.jsonl`. Set `WATCHBILL_HOME=/some/dir` to
+keep a run's config, rosters and journal under one directory (a rehearsal, a
+test). Do not isolate with `XDG_CONFIG_HOME`: herdr keeps its session sockets
+there too.
+
+**Each agent comes back as the same agent.** The roster records how every
+agent was launched: its flags, the permission mode and model they imply, its
+config directory, the non-secret environment that defines its seat, and a
+fingerprint of its settings, plugins, hooks, MCP servers, folder trust, CLI
+version and Herdr integration. On resume the flags, working directory and
+seat environment are restored exactly; the on-disk parts are checked before
+the agent starts, changes are reported, and a change that would break the
+resume stops that host. Secret values are never recorded.
 
 Minimal `hosts.toml`:
 

@@ -21,6 +21,11 @@ def test_secrets_never_enter_the_record():
     assert body.startswith(A.READONLY_MARK) and "*TOKEN*" in body and "/proc/123/environ" in body
 
 
+def test_secret_names_match_segments_not_substrings():
+    env, secret = A.parse_environ("N GIT_AUTHOR_NAME\nN GIT_AUTHOR_EMAIL\nN GH_AUTH_TOKEN\nN STARSHIP_SESSION_KEY\nN OAUTH_FOO\n")
+    assert secret == ["GH_AUTH_TOKEN", "STARSHIP_SESSION_KEY"]
+
+
 def test_record_derives_permission_mode_model_and_seat():
     rec = A.build("claude", ["claude", "--model", "haiku", "--dangerously-skip-permissions", "do it"],
                   {"CLAUDE_CONFIG_DIR": "/home/u/.claude-work", "PATH": "/bin"}, ["ANTHROPIC_API_KEY"], DISK)

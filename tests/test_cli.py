@@ -101,6 +101,22 @@ def test_relieve_live_refused_and_cold_plans(xdg, fixture_collect, capsys):
     assert "pacman" in capsys.readouterr().out
 
 
+def test_relieve_decides_parking_from_live_status_not_the_file(xdg, fixture_collect, capsys):
+    """Rehearsal run 2: current.json recorded an agent as `working` the instant
+    after a resume prompt; live it was idle. The window must use live status."""
+    assert cli.main(["snap", "--host", "ser6"]) == 0
+    cur = paths.current_roster("test")
+    data = json.loads(cur.read_text())
+    for o in data["occupants"]:
+        if o["kind"] == "grok":
+            o["agent_status"] = "working"                 # stale file
+    real = cur.resolve()
+    real.write_text(json.dumps(data))
+    capsys.readouterr()
+    assert cli.main(["relieve", "upgrade-agents", "--host", "ser6", "--kinds", "grok", "--probes-json", PROBES]) == 0
+    assert "agent is working" not in capsys.readouterr().out
+
+
 def test_status_and_doctor(xdg, fixture_collect, capsys):
     assert cli.main(["status"]) == 1
     assert "no current roster" in capsys.readouterr().out

@@ -260,7 +260,9 @@ class Plan:
             argv = " ".join(s.argv)
             pre = f"  (if {s.precondition})" if s.precondition else ""
             lines.append(f"  [{flag}] {s.id:<6} {s.kind.value:<7} {who}: {s.description}{pre}")
-            if argv:
+            if argv and s.kind is StepKind.CHECK:
+                lines.append("          $ (read-only config probe: settings, plugins, hooks, MCP, trust, version, integration)")
+            elif argv:
                 lines.append(f"          $ {argv}")
         for n in self.notes:
             lines.append(f"  note: {n}")
