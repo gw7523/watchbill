@@ -2,7 +2,7 @@
 
 Paste this into a **new Claude session** as the builder. Paste the **Reviewer brief** into a **Grok** session (or the same session as a second agent) after Claude produces architecture artifacts. Drop `watchbill-spec.md` in the repo root; it is the product spec. This prompt is the build contract.
 
-You will open a **new personal GitHub repo**. Suggested name: `watchbill`. License: Apache-2.0. Do not invent an org. Do not publish under `sfl` unless the owner says so. Plugin id stays `sfl.watchbill` (product identity); the git remote is personal.
+You will open a **new personal GitHub repo**. Suggested name: `watchbill`. License: Apache-2.0. Do not invent an org. Do not publish under `sfl` unless the owner says so. Plugin id is `gw7523.watchbill` (not SFL-specific); the git remote is personal.
 
 ---
 
@@ -64,7 +64,7 @@ Target runtime: **Herdr 0.8.2, socket protocol 20**. Forward-compatible with 0.9
 |---|---|
 | Product | Watchbill |
 | CLI | `watchbill` |
-| Plugin id | `sfl.watchbill` |
+| Plugin id | `gw7523.watchbill` |
 | Skill | `skills/watchbill/SKILL.md` |
 
 Do not rename to Muster, Fleet, Corral, Fold, or Roundup.

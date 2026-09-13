@@ -15,7 +15,7 @@ Read in the order asked. Live tmux/cmux was not driven; argv and plans were judg
 
 **Product**
 
-- [x] Name is Watchbill. No Muster collision. — **PASS** — unchanged; plugin id `sfl.watchbill`; `upgrade-mux` is an action alias, not a rename.
+- [x] Name is Watchbill. No Muster collision. — **PASS** — unchanged; plugin id `gw7523.watchbill`; `upgrade-mux` is an action alias, not a rename.
 - [x] Verbs are roll / snap / secure / set / relieve. Relieve is generic; not “the herdr upgrader.” — **PASS** — `reload-config` and `upgrade-mux` are actions; verbs unchanged (`tests/test_cli.py:30-34`).
 - [x] upgrade-agents and install-plugin exist as Action implementations, not new top-level commands. — **PASS** — plus `reload-config` / `upgrade-mux` in the same registry (`src/watchbill/actions/__init__.py:17-27`).
 
@@ -79,7 +79,7 @@ What is not acceptable is the tmux (and mixed-host action) *composition*: a cold
 ---
 
 ## Checklist
-- Product / name: PASS — CLI `watchbill`, plugin `sfl.watchbill`, mux names herdr/tmux/cmux only (`src/watchbill/hosts.py:35`).
+- Product / name: PASS — CLI `watchbill`, plugin `gw7523.watchbill`, mux names herdr/tmux/cmux only (`src/watchbill/hosts.py:35`).
 - Relieve is generic: PASS — `upgrade-mux` aliases `upgrade-herdr`; `reload-config` is an action (`src/watchbill/actions/__init__.py:17-21`).
 - Transport default SSH not --remote: PASS — `SshCliSession.mux_argv` is `ssh … -- <mux prefix> …` (`src/watchbill/transport/ssh_cli.py:34-36`).
 - No live PTY adopt: PASS — tmux/cmux `live_handoff="never"`; live mode errors (`src/watchbill/mux/tmux.py:21`, `cmux.py:15`, `src/watchbill/plan_relieve.py:82-83`).

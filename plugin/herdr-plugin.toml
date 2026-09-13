@@ -3,9 +3,7 @@
 # `herdr plugin install gw7523/watchbill/plugin`.
 #
 # The id namespace is the GitHub owner the plugin installs from, which is how
-# `herdr plugin install owner/repo` reads. Nothing here is SFL-specific, so it
-# is deliberately NOT under an `sfl.` namespace (the build contract's original
-# `sfl.watchbill` was overridden by the owner on 2026-09-12).
+# `herdr plugin install owner/repo` reads. Nothing here is SFL-specific.
 id = "gw7523.watchbill"
 name = "Watchbill"
 version = "0.0.1"

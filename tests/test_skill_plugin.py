@@ -25,6 +25,14 @@ def test_plugin_manifest_is_a_thin_wrapper():
         assert "--yes" not in a["command"]
 
 
+def test_old_sfl_plugin_id_appears_nowhere():
+    old = "sfl" + ".watchbill"          # spelled apart so this file does not match itself
+    hits = [str(p.relative_to(ROOT)) for p in ROOT.rglob("*")
+            if p.is_file() and ".git" not in p.parts and ".venv" not in p.parts
+            and p.suffix in (".py", ".md", ".toml", ".json", ".txt") and old in p.read_text(errors="ignore")]
+    assert hits == [], f"old plugin id still present in: {hits}"
+
+
 def test_docs_exist_with_sequences():
     arch = (ROOT / "docs/architecture.md").read_text()
     for name in ("roll", "secure park", "set", "relieve cold", "relieve live-rejected", "upgrade-agents"):

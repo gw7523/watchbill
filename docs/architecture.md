@@ -21,7 +21,6 @@ here rather than by editing that file.
 
 | Contract said | Now | Why |
 |---|---|---|
-| Plugin id `sfl.watchbill` | **`gw7523.watchbill`** (2026-09-12) | Nothing in the tool is SFL-specific. The repo is personal and Apache-2.0, and the id namespaces by the GitHub owner it installs from (`herdr plugin install gw7523/watchbill/plugin`). |
 | One branch, one linked worktree per lane | commits go straight to `main` | Private single-writer repo; recorded in `.graph-loop/state.md`. |
 
 ## Hard constraint

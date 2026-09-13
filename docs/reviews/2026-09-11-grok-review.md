@@ -13,7 +13,7 @@ Reviewer: Grok (delegate, not co-author). No source was modified.
 
 **Product**
 
-- [x] Name is Watchbill. No Muster collision. — **PASS** — product/CLI/plugin id `sfl.watchbill`; tests reject `herdr-muster` / `kichel.muster`.
+- [x] Name is Watchbill. No Muster collision. — **PASS** — product/CLI/plugin id `gw7523.watchbill`; tests reject `herdr-muster` / `kichel.muster`.
 - [x] Verbs are roll / snap / secure / set / relieve. Relieve is generic; not “the herdr upgrader.” — **PASS** — `overhaul` is an alias of `relieve`; `upgrade-herdr` is an action, not a verb.
 - [x] upgrade-agents and install-plugin exist as Action implementations, not new top-level commands. — **PASS**
 
@@ -63,7 +63,7 @@ UNVERIFIED-0.8.2 rows in `docs/architecture.md` have fallbacks; all of them are 
 approve-with-nits
 
 ## Checklist
-- Product / name: PASS — CLI `watchbill`, plugin `sfl.watchbill`, no Muster/Fleet/Corral rename; `tests/test_skill_plugin.py:35` bans herdr-muster.
+- Product / name: PASS — CLI `watchbill`, plugin `gw7523.watchbill`, no Muster/Fleet/Corral rename; `tests/test_skill_plugin.py:35` bans herdr-muster.
 - Relieve is generic: PASS — `relieve`/`overhaul` take an Action (`upgrade-herdr`, `upgrade-agents`, `install-plugin`, …). No `upgrade-claude` verb (`tests/test_cli.py:34`, `tests/test_blast_radius.py:82`).
 - Transport default SSH not --remote: PASS — `Host.transport` defaults to `ssh_cli` (`src/watchbill/hosts.py:44`); `SshCliSession.herdr_argv` is `ssh -o BatchMode=yes … -- herdr --session S …` (`src/watchbill/transport/ssh_cli.py:22-35`). `herdr_remote` is a later opt-in (`src/watchbill/transport/herdr_remote.py:1-6`).
 - No live PTY adopt: PASS — architecture hard constraint; cold is default (`--mode cold`); packaged installs cannot hand off.
