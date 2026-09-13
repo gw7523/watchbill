@@ -6,8 +6,10 @@
 #   examples/tmux/demo.sh proof      show what came back
 #   examples/tmux/demo.sh teardown   kill the demo server and its Watchbill state
 #
-# Costs a few cents of haiku and one short Grok exchange. Agents run in /tmp so
-# their transcripts are swept with it. Claude asks to trust a new folder once;
+# Costs a few cents of haiku and one short Grok exchange. The agents run in
+# /tmp folders; their transcripts are kept by Claude and Grok themselves
+# (~/.claude/projects/-tmp-wb-tmux-a, ~/.grok/sessions/%2Ftmp%2Fwb-tmux-b) and
+# age out with each tool's retention. Claude asks to trust a new folder once;
 # setup accepts it for the /tmp demo folder only.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -68,6 +70,10 @@ proof() {
   done
 }
 
-teardown() { "${T[@]}" kill-server 2>/dev/null || true; rm -rf "$WATCHBILL_HOME"; echo "demo removed (transcripts under /tmp are swept with it)"; }
+teardown() {
+  "${T[@]}" kill-server 2>/dev/null || true; rm -rf "$WATCHBILL_HOME"
+  echo "demo removed. Agent transcripts remain until Claude/Grok retention clears them; to remove now:"
+  echo "  rm -rf ~/.claude/projects/-tmp-wb-tmux-a ~/.grok/sessions/%2Ftmp%2Fwb-tmux-b"
+}
 
 "${1:-setup}"

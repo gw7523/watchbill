@@ -24,7 +24,11 @@ examples/tmux/demo.sh teardown
 ```
 
 State lives in `WATCHBILL_HOME` (default `/tmp/watchbill-tmux-demo`), so your
-real fleet config is never touched. The agents run in `/tmp`.
+real fleet config is never touched. The agents run in `/tmp` folders, but
+Claude and Grok keep their transcripts in their own directories
+(`~/.claude/projects/-tmp-wb-tmux-a`, `~/.grok/sessions/%2Ftmp%2Fwb-tmux-b`),
+where they age out with each tool's retention; `teardown` prints the command
+to remove them sooner.
 
 ## Use it for your own tmux
 
