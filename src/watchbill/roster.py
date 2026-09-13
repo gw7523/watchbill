@@ -66,6 +66,11 @@ class Occupant:
     excerpt: str | None = None   # cockpit-local unless snap.excerpt_sync
     taken_at: str = ""
     mux: str = "herdr"           # which multiplexer owns this pane (additive, schema 1)
+    # Launch configuration recorded while the agent ran: flags, permission
+    # mode, model, seat env (allowlisted, no secrets), and an on-disk
+    # fingerprint (settings/plugins/hooks/MCP/trust/version/integration).
+    # See agentconfig.py. Additive, schema 1.
+    agent_config: dict | None = None
 
     @property
     def effective_cwd(self) -> str:

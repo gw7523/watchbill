@@ -152,21 +152,28 @@ class TmuxBackend:
     def interrupt(self, pane_id: str) -> list[str]:
         return ["send-keys", "-t", pane_id, "C-c"]
 
-    def workspace_create(self, label: str, cwd: str, window: str | None = None) -> list[str]:
+    @staticmethod
+    def _env(env: dict | None) -> list[str]:
+        out: list[str] = []
+        for k, v in sorted((env or {}).items()):
+            out += ["-e", f"{k}={v}"]
+        return out
+
+    def workspace_create(self, label: str, cwd: str, window: str | None = None, env: dict | None = None) -> list[str]:
         # `-n` names the first window. Without it the window is auto-named after
         # its process, and `select-layout -t <session>:<window-name>` (the only
         # path that re-applies a recorded layout) would target nothing.
-        argv = ["new-session", "-d", "-s", label, "-c", cwd]
+        argv = ["new-session", "-d", "-s", label, "-c", cwd, *self._env(env)]
         if window:
             argv += ["-n", window]
         return [*argv, "-P", "-F", "#{session_id}|#{pane_id}"]
 
-    def tab_create(self, workspace_ref: str, label: str, cwd: str) -> list[str] | None:
-        return ["new-window", "-d", "-t", workspace_ref, "-n", label, "-c", cwd, "-P", "-F", "#{window_id}|#{pane_id}"]
+    def tab_create(self, workspace_ref: str, label: str, cwd: str, env: dict | None = None) -> list[str] | None:
+        return ["new-window", "-d", "-t", workspace_ref, "-n", label, "-c", cwd, *self._env(env), "-P", "-F", "#{window_id}|#{pane_id}"]
 
-    def pane_split(self, pane_ref: str, direction: str, cwd: str) -> list[str]:
+    def pane_split(self, pane_ref: str, direction: str, cwd: str, env: dict | None = None) -> list[str]:
         flag = "-h" if direction == "right" else "-v"
-        return ["split-window", "-d", "-t", pane_ref, flag, "-c", cwd, "-P", "-F", "#{pane_id}"]
+        return ["split-window", "-d", "-t", pane_ref, flag, "-c", cwd, *self._env(env), "-P", "-F", "#{pane_id}"]
 
     def layout_apply(self, tab_ref: str, layout: str) -> list[str] | None:
         return ["select-layout", "-t", tab_ref, layout]
@@ -174,9 +181,10 @@ class TmuxBackend:
     def pane_run(self, pane_ref: str, argv: Sequence[str], cwd: str) -> list[str]:
         return ["respawn-pane", "-k", "-t", pane_ref, "-c", cwd, *argv]
 
-    def agent_start(self, name: str, kind: str, pane_ref: str, resume_argv: Sequence[str] | None) -> list[list[str]]:
+    def agent_start(self, name: str, kind: str, pane_ref: str, resume_argv: Sequence[str] | None,
+                    flags: Sequence[str] | None = None) -> list[list[str]]:
         from ..classify import AGENT_KINDS
-        argv = list(resume_argv) if resume_argv else [AGENT_KINDS.get(kind, kind)]
+        argv = list(resume_argv) if resume_argv else [AGENT_KINDS.get(kind, kind), *(flags or [])]
         return [self.send_text(pane_ref, shlex.join(argv)), self.send_enter(pane_ref)]
 
     def _poll(self, session: str, pane_ref: str, cond: str, timeout_ms: int) -> list[str]:
@@ -221,9 +229,10 @@ class TmuxBackend:
     def server_stop(self) -> list[str] | None:
         return ["kill-server"]
 
-    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None) -> list[str] | None:
+    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None,
+                      env: dict | None = None) -> list[str] | None:
         # `new-session -d` starts the server AND makes the first workspace.
-        return self.workspace_create(first_label, cwd, window)
+        return self.workspace_create(first_label, cwd, window, env)
 
     def reload_config(self) -> list[str] | None:
         return ["source-file", self.conf]

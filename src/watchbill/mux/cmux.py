@@ -101,13 +101,13 @@ class CmuxBackend:
     def interrupt(self, pane_id: str) -> list[str]:
         return ["send-key", "--surface", pane_id, "escape"]   # no ctrl-c key documented; escape is
 
-    def workspace_create(self, label: str, cwd: str) -> list[str]:
+    def workspace_create(self, label: str, cwd: str, env: dict | None = None) -> list[str]:
         return ["new-workspace"]   # no --label/--cwd documented; label applied later is UNVERIFIED
 
-    def tab_create(self, workspace_ref: str, label: str, cwd: str) -> list[str] | None:
+    def tab_create(self, workspace_ref: str, label: str, cwd: str, env: dict | None = None) -> list[str] | None:
         return None   # panels are created by splitting
 
-    def pane_split(self, pane_ref: str, direction: str, cwd: str) -> list[str]:
+    def pane_split(self, pane_ref: str, direction: str, cwd: str, env: dict | None = None) -> list[str]:
         return ["new-split", direction if direction in ("right", "down", "left", "up") else "right"]
 
     def layout_apply(self, tab_ref: str, layout: str) -> list[str] | None:
@@ -117,10 +117,11 @@ class CmuxBackend:
         import shlex
         return ["send", "--surface", pane_ref, shlex.join(argv)]   # then send_enter
 
-    def agent_start(self, name: str, kind: str, pane_ref: str, resume_argv: Sequence[str] | None) -> list[list[str]]:
+    def agent_start(self, name: str, kind: str, pane_ref: str, resume_argv: Sequence[str] | None,
+                    flags: Sequence[str] | None = None) -> list[list[str]]:
         import shlex
         from ..classify import AGENT_KINDS
-        argv = list(resume_argv) if resume_argv else [AGENT_KINDS.get(kind, kind)]
+        argv = list(resume_argv) if resume_argv else [AGENT_KINDS.get(kind, kind), *(flags or [])]
         return [self.send_text(pane_ref, shlex.join(argv)), self.send_enter(pane_ref)]
 
     def agent_wait_exit(self, pane_ref: str, kind: str | None, timeout_ms: int) -> list[str]:
@@ -144,7 +145,8 @@ class CmuxBackend:
     def server_stop(self) -> list[str] | None:
         return None
 
-    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None) -> list[str] | None:
+    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None,
+                      env: dict | None = None) -> list[str] | None:
         return None   # GUI relaunch is manual; then `restore-session`
 
     def restore_session(self) -> list[str]:

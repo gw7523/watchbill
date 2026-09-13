@@ -79,14 +79,21 @@ class HerdrBackend:
         # verified: `ctrl-c` is rejected with invalid_key; the tmux-style `C-c` is the name.
         return ["pane", "send-keys", pane_id, "C-c"]
 
-    def workspace_create(self, label: str, cwd: str) -> list[str]:
-        return ["workspace", "create", "--label", label, "--cwd", cwd, "--no-focus"]
+    @staticmethod
+    def _env(env: dict | None) -> list[str]:
+        out: list[str] = []
+        for k, v in sorted((env or {}).items()):
+            out += ["--env", f"{k}={v}"]
+        return out
 
-    def tab_create(self, workspace_ref: str, label: str, cwd: str) -> list[str] | None:
-        return ["tab", "create", "--workspace", workspace_ref, "--label", label, "--cwd", cwd, "--no-focus"]
+    def workspace_create(self, label: str, cwd: str, env: dict | None = None) -> list[str]:
+        return ["workspace", "create", "--label", label, "--cwd", cwd, *self._env(env), "--no-focus"]
 
-    def pane_split(self, pane_ref: str, direction: str, cwd: str) -> list[str]:
-        return ["pane", "split", pane_ref, "--direction", direction, "--cwd", cwd, "--no-focus"]
+    def tab_create(self, workspace_ref: str, label: str, cwd: str, env: dict | None = None) -> list[str] | None:
+        return ["tab", "create", "--workspace", workspace_ref, "--label", label, "--cwd", cwd, *self._env(env), "--no-focus"]
+
+    def pane_split(self, pane_ref: str, direction: str, cwd: str, env: dict | None = None) -> list[str]:
+        return ["pane", "split", pane_ref, "--direction", direction, "--cwd", cwd, *self._env(env), "--no-focus"]
 
     def layout_apply(self, tab_ref: str, layout: str) -> list[str] | None:
         return None   # socket-only in 0.8.2 (ssh_socket transport, later)
@@ -94,10 +101,17 @@ class HerdrBackend:
     def pane_run(self, pane_ref: str, argv: Sequence[str], cwd: str) -> list[str]:
         return ["pane", "run", pane_ref, *argv]
 
-    def agent_start(self, name: str, kind: str, pane_ref: str, resume_argv: Sequence[str] | None) -> list[list[str]]:
+    def agent_start(self, name: str, kind: str, pane_ref: str, resume_argv: Sequence[str] | None,
+                    flags: Sequence[str] | None = None) -> list[list[str]]:
+        """`herdr agent start` PREPENDS the kind's canonical executable
+        (verified 2026-09-13: `-- claude --model haiku` ran `claude claude
+        --model haiku`). So only the arguments go after `--`. Passing the full
+        `claude --resume <id>` would resume and then send the word "claude"
+        to the agent as a prompt."""
         argv = ["agent", "start", name, "--kind", kind, "--pane", pane_ref]
-        if resume_argv:
-            argv += ["--", *resume_argv]
+        args = list(resume_argv[1:]) if resume_argv else list(flags or [])
+        if args:
+            argv += ["--", *args]
         return [argv]
 
     def agent_wait_exit(self, pane_ref: str, kind: str | None, timeout_ms: int) -> list[str]:
@@ -129,7 +143,8 @@ class HerdrBackend:
     def server_stop(self) -> list[str] | None:
         return ["server", "stop"]
 
-    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None) -> list[str] | None:
+    def session_start(self, session: str, first_label: str, cwd: str, window: str | None = None,
+                      env: dict | None = None) -> list[str] | None:
         # Verified 2026-09-11: `herdr --session <name> server` starts a detached
         # headless server. hosts.toml `start` still wins when a host sets one
         # (Omarchy boxes prefer their systemd user unit).

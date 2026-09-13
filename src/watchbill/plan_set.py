@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from . import agentconfig
 from . import hosts as hosts_mod
 from .doctor import Probe
 from .hosts import Fleet, Host
@@ -59,12 +60,13 @@ def _live_ids(live: Roster | None, o: Occupant) -> Occupant | None:
 
 
 def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str, first_label: str = "watchbill",
-                cwd: str = "~", creates_slot: str | None = None, first_window: str | None = None) -> None:
+                cwd: str = "~", creates_slot: str | None = None, first_window: str | None = None,
+                first_env: dict | None = None) -> None:
     """Start a session. herdr: the host's `start` capability (systemd unit on
     Omarchy; the built-in default is UNVERIFIED-0.8.2). tmux: `new-session -d`
     (verified). cmux: a MANUAL relaunch followed by `restore-session`."""
     be = backend_of(fleet, host.name)
-    native = be.session_start(session, first_label, cwd, first_window)
+    native = be.session_start(session, first_label, cwd, first_window, first_env)
     if be.name == "cmux":
         plan.add(Step(id=f"{tag}start", kind=StepKind.MANUAL, host=host.name, session=session, mux="cmux", mutating=True,
                       description="MANUAL: launch cmux on the Mac (no CLI relaunch exists), then continue"))
@@ -164,9 +166,11 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                         break
             first_tab = next((t for t in (first_ws or {}).get("tabs", [])
                               if any(pn["slot_id"] in wanted for pn in t["panes"])), None)
+            booted_occ = roster.by_slot(booted_slot) if booted_slot else None
             start_steps(plan, fleet, host, session, tag=p, first_label=(first_ws or {}).get("label", "watchbill"),
                         cwd=(first_ws or {}).get("cwd") or "~", creates_slot=booted_slot,
-                        first_window=(first_tab or {}).get("label"))
+                        first_window=(first_tab or {}).get("label"),
+                        first_env=agentconfig.restore_env(booted_occ.agent_config) if booted_occ else None)
         # 3. viewport
         if not skip_attach:
             attach_steps(plan, fleet, host, session, cockpit_host=cockpit_host, self_pane=self_pane, tag=p)
@@ -193,9 +197,10 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                     elif first["slot_id"] == booted_slot:
                         created.add(first["slot_id"])   # placeholder filled by the start step
                     elif ti == 0:
-                        ws_argv = (be.workspace_create(ws["label"], first.get("cwd") or ws.get("cwd") or "~", t["label"])
+                        first_env = _slot_env(roster, first["slot_id"])
+                        ws_argv = (be.workspace_create(ws["label"], first.get("cwd") or ws.get("cwd") or "~", t["label"], first_env)
                                    if be.name == "tmux" else
-                                   be.workspace_create(ws["label"], first.get("cwd") or ws.get("cwd") or "~"))
+                                   be.workspace_create(ws["label"], first.get("cwd") or ws.get("cwd") or "~", env=first_env))
                         mux_step(plan, fleet, f"{p}ws.{ws['label']}", host_name, session,
                                  f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]})",
                                  *ws_argv, creates=first["slot_id"], unverified=be.caps.docs_only)
@@ -205,7 +210,8 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                                                                   f"{ws['label']!r} comes back untitled; rename it in the app (⌘⇧R)"))
                         created.add(first["slot_id"])
                     else:
-                        tab_argv = be.tab_create(f"{{ws:{ws_key}}}", t["label"], first.get("cwd") or "~")
+                        tab_argv = be.tab_create(f"{{ws:{ws_key}}}", t["label"], first.get("cwd") or "~",
+                                                 env=_slot_env(roster, first["slot_id"]))
                         if tab_argv is None:
                             plan.notes.append(f"{host_name}: {be.name} has no tab create; panes of tab {t['label']} split off the first pane")
                             continue
@@ -221,7 +227,8 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                         direction = "right" if (r1.get("x", 0) > r0.get("x", 0)) else "down"
                         mux_step(plan, fleet, f"{p}split.{pn['slot_id'][-6:]}", host_name, session,
                                  f"split pane for {pn['pane_label']} ({direction})",
-                                 *be.pane_split(f"{{pane:{first['slot_id']}}}", direction, pn.get("cwd") or "~"),
+                                 *be.pane_split(f"{{pane:{first['slot_id']}}}", direction, pn.get("cwd") or "~",
+                                                env=_slot_env(roster, pn["slot_id"])),
                                  placeholders=True, creates=pn["slot_id"], unverified=be.caps.docs_only)
                         created.add(pn["slot_id"])
                     restored_all = len(panes) == len(t["panes"])
@@ -241,16 +248,31 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
             if o.role == "agent":
                 name = agent_name(o)
                 target = be.agent_target(pane_tok, name)
+                cfg = o.agent_config or {}
+                if cfg:
+                    # Verify the on-disk half of the recorded configuration before
+                    # the agent starts (read-only). The per-process half — flags,
+                    # cwd, seat env — is restored by the start and pane steps.
+                    probe = agentconfig.config_probe_argv(o.kind or "", cfg.get("config_dir") or "~",
+                                                          o.effective_cwd or "~", be.name)
+                    plan.add(Step(id=f"{p}{name}.config", kind=StepKind.CHECK, host=host_name, session=session,
+                                  mux=host.mux, description=(f"verify recorded config: permission={cfg.get('permission_mode')} "
+                                                             f"model={cfg.get('model')} dir={cfg.get('config_dir')}"),
+                                  argv=tuple(probe), raw=tuple(probe), via="shell", mutating=False,
+                                  slot_id=o.slot_id, human_id=o.human_id, expect=cfg.get("disk") or {}, agent_kind=o.kind))
+                    if not cfg.get("flags_carried") and o.argv[1:]:
+                        plan.notes.append(f"{o.human_id}: {o.kind} flags are not carried (no verified flag table); "
+                                          f"it resumes without: {' '.join(o.argv[1:])[:80]}")
                 if o.resume_argv:
                     how = (f"resume {o.kind} conversation {o.agent_session['value'][:8]}…" if o.agent_session
                            else f"resume {o.kind} via {' '.join(o.resume_argv)} (cwd-scoped)")
-                    for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, o.resume_argv)):
+                    for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, o.resume_argv, cfg.get("flags"))):
                         mux_step(plan, fleet, f"{p}{name}.start" + (f".{j}" if j else ""), o, session, how,
                                  *argv, precondition="pane at interactive shell prompt", placeholders=ph,
                                  unverified=(not is_verified(o.kind)) or be.caps.docs_only)
                 else:
                     why = "no agent_session recorded: unref" if be.caps.native_resume else "no unambiguous continue form"
-                    for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, None)):
+                    for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, None, cfg.get("flags"))):
                         mux_step(plan, fleet, f"{p}{name}.start" + (f".{j}" if j else ""), o, session,
                                  f"start fresh {o.kind} ({why})", *argv,
                                  precondition="pane at interactive shell prompt", placeholders=ph, unverified=be.caps.docs_only)
@@ -285,6 +307,11 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                       description="rewrite live_ids for restored slots", mutating=True))
     plan.add(Step(id=f"{tag}.snap", kind=StepKind.SNAP, host=cockpit_host or "cockpit",
                   description="write roster (reason=post-set); occupant guard applies to current.json", mutating=True))
+
+
+def _slot_env(roster: Roster, slot_id: str) -> dict | None:
+    o = roster.by_slot(slot_id)
+    return agentconfig.restore_env(o.agent_config) if o else None
 
 
 def plan_set(roster: Roster, fleet: Fleet, opts: SetOptions) -> Plan:

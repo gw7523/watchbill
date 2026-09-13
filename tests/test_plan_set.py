@@ -25,7 +25,8 @@ def test_attach_precedes_agent_start_and_resume_argv(roster, fleet, probes):
     i_ws = idx(p, lambda s: s.verb == ("workspace", "create"))
     assert idx(p, lambda s: s.id.endswith("reach")) < i_att < i_ws < i_start
     start = p.steps[i_start]
-    assert start.raw[-3:] == ("claude", "--resume", "b1b1b1b1-0000-4000-8000-0000000000b1")
+    # `herdr agent start` prepends the canonical executable: args only after `--`
+    assert start.raw[start.raw.index("--"):] == ("--", "--resume", "b1b1b1b1-0000-4000-8000-0000000000b1")
     assert "--kind" in start.raw and start.raw[start.raw.index("--kind") + 1] == "claude"
     assert start.placeholders and any(t.startswith("{pane:") for t in start.raw)
     assert "#2064" in p.steps[i_att].description

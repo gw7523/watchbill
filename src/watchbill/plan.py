@@ -26,6 +26,7 @@ class StepKind(str, Enum):
     JOURNAL = "journal"    # journal checkpoint (host marked set-complete, etc.)
     NOTE = "note"          # human-readable marker in dry-run output
     MANUAL = "manual"      # operator does something by hand; exec waits for confirmation (cmux relaunch)
+    CHECK = "check"        # read-only verification against a recorded expectation (agent config drift)
 
 
 # (group, sub) pairs. A leading "herdr", "--session <S>" and other global
@@ -155,6 +156,9 @@ class Step:
     # agent_kind: the occupant's kind, so exec can match the right approval
     # patterns when a mux has no native blocked state (tmux).
     agent_kind: str | None = None
+    # expect: what a CHECK step compares the live probe against (the occupant's
+    # recorded on-disk agent configuration).
+    expect: dict | None = None
 
     @property
     def verb(self) -> tuple[str, ...]:

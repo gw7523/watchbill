@@ -226,7 +226,8 @@ def test_tmux_set_no_viewport_layout_reapplied(tmux_roster, mixed_fleet, probes)
     lay = next(s for s in p.steps if s.raw[:1] == ("select-layout",))
     assert lay.raw[2] == "alpha:edit" and lay.raw[3].startswith("8205,")
     starts = [s for s in p.steps if s.raw[:4] == ("send-keys", "-t", "{pane:" + tmux_roster.by_human("mac/default/alpha/edit/p1").slot_id + "}", "-l")]
-    assert starts and starts[0].raw[4] == "claude"                            # ambiguous cwd → fresh start
+    # ambiguous cwd → fresh start, still with the agent's own flags
+    assert starts and starts[0].raw[4] == "claude --dangerously-skip-permissions"
     assert not any("--current" in s.argv for s in p.steps)
 
 

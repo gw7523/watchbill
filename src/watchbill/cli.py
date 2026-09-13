@@ -192,6 +192,14 @@ def _roster_table(ro: _roster.Roster, explain: bool = False) -> str:
         lines.append(f"  {o.slot_id[-8:]}  {o.role:<7} {o.kind or '-':<8} {st:<8} {ids:<7} {o.human_id}  {o.effective_cwd}")
         if explain:
             lines.append(f"            argv: {o.cmdline or '(shell)'}  tasking: {o.tasking or '-'}")
+            if o.agent_config:
+                c = o.agent_config
+                d = c.get("disk") or {}
+                lines.append(f"            config: permission={c.get('permission_mode')} model={c.get('model')} "
+                             f"dir={c.get('config_dir')} version={d.get('version')} integration={d.get('integration')} "
+                             f"plugins={len(d.get('plugins') or [])} hooks={sum((d.get('hooks') or {}).values())} "
+                             f"mcp={len(d.get('mcp_servers') or [])} trusted={d.get('trusted')}"
+                             + (f" secret-env={','.join(c['secret_env'])}" if c.get("secret_env") else ""))
     return "\n".join(lines)
 
 

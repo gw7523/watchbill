@@ -15,6 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import json
+
+from . import agentconfig
 from . import classify as _classify
 from . import detect, doctor, prompts, resume
 from . import mux as _mux
@@ -35,6 +38,8 @@ class SessionFacts:
     process_info: dict[str, dict] = field(default_factory=dict)  # pane_id → process_info
     excerpts: dict[str, str] = field(default_factory=dict)       # pane_id → text
     bindings: dict[str, dict] = field(default_factory=dict)      # cmux: pane_id → surface resume binding
+    agent_env: dict[str, tuple[dict, list]] = field(default_factory=dict)   # pane_id → (env allowlist, secret names)
+    agent_disk: dict[str, dict] = field(default_factory=dict)    # pane_id → on-disk config probe result
     error: str | None = None
     running: bool = True
     version: str | None = None
@@ -85,6 +90,7 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
             r = hs.mux(*ex_argv)
             if r.ok:
                 facts.excerpts[pane.pane_id] = r.stdout
+        _gather_agent_config(hs, be, pane, facts)
         if be.name == "cmux":
             r = hs.mux(*be.resume_binding_argv(pane.pane_id))
             if r.ok and r.stdout.strip():
@@ -94,6 +100,42 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
                 except ValueError:
                     pass
     return facts
+
+
+def _agent_pid(kind: str | None, pinfo: dict | None) -> int | None:
+    exe = _classify.AGENT_KINDS.get(kind or "", kind or "")
+    import os
+    for p in (pinfo or {}).get("foreground_processes") or []:
+        if any(os.path.basename(t) == exe for t in (p.get("argv") or [])[:2]):
+            return p.get("pid")
+    return None
+
+
+def _gather_agent_config(hs: HostSession, be, pane, facts: SessionFacts, cache: dict | None = None) -> None:
+    """Record an agent pane's launch configuration (read-only probes). Env is
+    filtered on the host; on-disk config is probed once per kind/seat/cwd."""
+    pinfo = facts.process_info.get(pane.pane_id)
+    cls = _classify.classify(_pane_dict(pane), pinfo)
+    if cls.role != "agent" or not cls.kind:
+        return
+    env, secret = {}, []
+    pid = _agent_pid(cls.kind, pinfo)
+    if pid:
+        r = hs.shell(agentconfig.environ_probe_argv(pid))
+        if r.ok:
+            env, secret = agentconfig.parse_environ(r.stdout)
+    facts.agent_env[pane.pane_id] = (env, secret)
+    cwd = _effective_cwd(pane, pinfo)
+    cfg = agentconfig.config_dir_for(cls.kind, env)
+    key = f"{cls.kind}|{cfg}|{cwd}"
+    cache = facts.__dict__.setdefault("_disk_cache", {})
+    if key not in cache:
+        r = hs.shell(agentconfig.config_probe_argv(cls.kind, cfg, cwd, be.name), timeout=60.0)
+        try:
+            cache[key] = json.loads(r.stdout) if r.ok and r.stdout.strip() else {}
+        except ValueError:
+            cache[key] = {}
+    facts.agent_disk[pane.pane_id] = cache[key]
 
 
 def probe_install(hs: HostSession) -> tuple[str | None, bool]:
@@ -276,6 +318,8 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                     tasking=_tasking(tasking, resume_note,
                                  heuristic=(cls.role == "agent" and caps.agent_status == "heuristic")),
                     excerpt=excerpt if keep_excerpts else None, taken_at=now, mux=hf.mux,
+                    agent_config=(agentconfig.build(cls.kind, cls.argv, *sf.agent_env.get(pid, ({}, [])),
+                                                    sf.agent_disk.get(pid)) if cls.role == "agent" else None),
                 )
                 roster.occupants.append(occ)
                 if wsid in ws_shapes and ws_shapes[wsid]["cwd"] is None:

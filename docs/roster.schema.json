@@ -186,7 +186,30 @@
         "tasking": { "type": ["string", "null"] },
         "excerpt": { "type": ["string", "null"], "description": "cockpit-local; stripped unless snap.excerpt_sync" },
         "taken_at": { "type": "string" },
-        "mux": { "$ref": "#/$defs/mux" }
+        "mux": { "$ref": "#/$defs/mux" },
+        "agent_config": {
+          "description": "Launch configuration recorded while the agent ran (additive, schema 1). Per-process parts are restored on resume; on-disk parts are verified before the agent starts.",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["flags", "permission_mode", "config_dir", "env", "secret_env", "disk"],
+              "properties": {
+                "flags": { "type": "array", "items": { "type": "string" } },
+                "flags_carried": { "type": "boolean" },
+                "permission_mode": { "type": "string" },
+                "model": { "type": ["string", "null"] },
+                "config_dir": { "type": "string" },
+                "env": { "type": "object", "additionalProperties": { "type": "string" },
+                         "description": "allowlisted, non-secret seat and context variables only" },
+                "secret_env": { "type": "array", "items": { "type": "string" },
+                                "description": "NAMES of secret-looking variables; values are never recorded" },
+                "disk": { "type": "object", "description": "settings/plugins/hooks/MCP/trust/version/integration fingerprint" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
       },
       "additionalProperties": false
     }

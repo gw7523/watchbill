@@ -84,7 +84,8 @@ def test_set_needs_roster_then_plans(xdg, fixture_collect, capsys):
     assert cli.main(["snap", "--host", "ser6"]) == 0
     assert cli.main(["set", "ser6/default/sfl-site/1/p1", "--probes-json", PROBES]) == 0
     out = capsys.readouterr().out
-    assert "claude --resume b1b1b1b1" in out and "#2064" in out
+    # herdr prepends the executable itself: only the arguments follow `--`
+    assert "-- --resume b1b1b1b1" in out and "-- claude" not in out and "#2064" in out
 
 
 def test_relieve_live_refused_and_cold_plans(xdg, fixture_collect, capsys):

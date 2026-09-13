@@ -86,6 +86,28 @@ class Executor:
         if ids.get("workspace_id"):
             pane_map[f"ws:{step.creates}"] = ids["workspace_id"]
 
+    def _run_check(self, step: Step, plan: Plan) -> str | None:
+        """Compare an agent's live on-disk configuration with what was recorded
+        when it was parked. Changes are reported; changes that would make the
+        resumed agent wrong or stuck fail the step (and stop the host)."""
+        import json as _json
+        from .agentconfig import diff
+        hs = self._hs(step.host, step.session)
+        res = hs.shell(list(step.raw), timeout=90.0)
+        live = None
+        if res.ok and res.stdout.strip():
+            try:
+                live = _json.loads(res.stdout.strip().splitlines()[-1])
+            except ValueError:
+                live = None
+        notes, hard = diff(step.expect, live)
+        for n in notes:
+            self.out(f"  config {step.human_id or step.host}: {n}")
+        if notes:
+            self.journal.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status="ok",
+                                detail="config drift: " + "; ".join(notes))
+        return "; ".join(hard) if hard else None
+
     def _check_precondition(self, step: Step, hs: HostSession, raw: tuple[str, ...]) -> str | None:
         """Pitfall 12: never prompt a blocked agent. Herdr rejects it too, but
         we ask first so the plan stops cleanly instead of on an error."""
@@ -164,7 +186,7 @@ class Executor:
                 result.failed.append(f"{step.host}:{step.id}: {err}")
                 j.append(run_id=self.run_id, verb=plan.verb, host=step.host, step_id=step.id, status="fail", detail=err)
                 self.out(f"FAIL {step.host} {step.id}: {err}")
-                if step.mutating or step.kind is StepKind.WAIT:
+                if step.mutating or step.kind in (StepKind.WAIT, StepKind.CHECK):
                     failed_hosts.add(step.host)
             else:
                 result.ran += 1
@@ -177,6 +199,8 @@ class Executor:
     def _run_step(self, step: Step, plan: Plan, result: ExecResult) -> str | None:
         if step.kind in (StepKind.NOTE,):
             return None
+        if step.kind is StepKind.CHECK:
+            return self._run_check(step, plan)
         if step.kind is StepKind.MANUAL:
             self.out(f"MANUAL {step.host}: {step.description}")
             return None if self.confirm(step.description) else "operator did not confirm the manual step"
