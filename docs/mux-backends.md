@@ -32,9 +32,9 @@ The five-part `human_id` is unchanged. Each backend maps its own nouns onto
 
 | slot | herdr | tmux | cmux |
 |---|---|---|---|
-| session | named session (`--session S`) | server socket (`-L S`) | `app` |
+| session | named session (`--session S`) | server socket (`-L S`) | the app (name cosmetic; `app`) |
 | workspace | workspace label | session name | workspace title |
-| tab | tab label | window name (index) | panel (`panel<n>`) |
+| tab | tab label | window name (index) | pane, i.e. a split (`pane<n>`) |
 | pane | agent name / `p<n>` | `p<pane_index>` | surface (`s<n>`) |
 | live pane id | `w1:p2` | `%N` | surface uuid |
 
@@ -46,7 +46,7 @@ src/watchbill/mux/
                workspaces/tabs/panes), argv builders, output parsers
   herdr.py     the verbs the first pass used, unchanged in behaviour
   tmux.py      tmux 3.x (verified on 3.7c; docs/tmux-3.7-facts.md)
-  cmux.py      docs-verified only (docs/cmux-facts.md); UNVERIFIED-LIVE
+  cmux.py      cmux 0.64 (verified live on the Mac mini; docs/cmux-facts.md)
 src/watchbill/detect.py   agent role/kind/status heuristics for muxes that
                do not know agents (argv, quiet time, approval-prompt patterns)
 ```
@@ -62,36 +62,40 @@ into a `MuxSnapshot`; `build_roster` is unchanged above that.
 
 | capability | herdr | tmux | cmux |
 |---|---|---|---|
-| agent detection (role/kind) | native | derived from argv | resume binding, else `shell` |
-| agent status idle/working/blocked | native | derived: quiet time + prompt patterns → idle / working / unknown | `unknown` |
-| native resume id | `agent_session` | none → cwd-scoped `--continue` with cwd-uniqueness guard | `surface resume show --json` |
-| process info (cwd, argv) | `pane process-info` | `ps -t <pane_tty>` | **absent in docs** |
-| screen excerpt | `pane read` | `capture-pane -p` | **absent in docs** |
-| shape rebuild | workspace/tab create + split | new-session/new-window/split + `select-layout '<layout>'` (exact) | new-workspace + new-split (positions unverified) |
-| live config reload (PTYs kept) | `server reload-config` | `source-file` | absent |
+| agent detection (role/kind) | native | derived from argv | native: agent hook store (`sessions list`) + argv from `ps -t` |
+| agent status idle/working/blocked | native | derived: quiet time + prompt patterns → idle / working / unknown | native: hook lifecycle (idle / running / needsInput; `unknown` until a resumed agent's first turn) |
+| native resume id | `agent_session` | none → cwd-scoped `--continue` with cwd-uniqueness guard | hook store session id; cmux replays the resume itself on relaunch |
+| process info (cwd, argv) | `pane process-info` | `ps -t <pane_tty>` | `ps -t <tty>` (tty from `CMUX_SURFACE_ID` in the process env) |
+| screen excerpt | `pane read` | `capture-pane -p` | `read-screen --surface` |
+| shape rebuild | workspace/tab create + split | new-session/new-window/split + `select-layout '<layout>'` (exact) | `workspace create` + `new-split`; rarely needed — the app restores its own layout on relaunch |
+| live config reload (PTYs kept) | `server reload-config` | `source-file` | `reload-config` |
 | live handoff on binary upgrade | official installer only | no | no |
-| headless start | UNVERIFIED (`herdr --session S server`) / systemd unit | `new-session -d` | GUI only; `restore-session` after manual relaunch |
-| plugin install | `plugin install` (+ bounce if startup hooks) | TPM `install_plugins` + `source-file` (live) | absent |
+| headless start | UNVERIFIED (`herdr --session S server`) / systemd unit | `new-session -d` | `open -a cmux` from ssh (lands in the desktop session; verified) |
+| plugin install | `plugin install` (+ bounce if startup hooks) | TPM `install_plugins` + `source-file` (live) | none (no plugin system) |
 | viewport needed for resume (#2064) | yes | no | n/a (GUI) |
-| "server stop" guard | `server stop` needs `--force-server-stop` | `kill-server` needs `--force-server-stop` | no server |
+| "server stop" guard | `server stop` needs `--force-server-stop` | `kill-server` needs `--force-server-stop` | the AppleScript quit needs `--force-server-stop` unless planned; needs `app.confirmQuit = "never"` |
 
 Planners consult `Capabilities` and turn a missing capability into a
 `Refusal` (exit 3) or a `note`, never into a guess:
 
 - `relieve --mode live` on tmux/cmux → refused (no handoff).
-- `reload-config` (new action) on cmux → refused; on herdr/tmux it is a
-  live action: nothing parked, nothing stopped.
-- `install-plugin` on cmux → refused; on tmux it is live (TPM + source-file).
-- excerpts on cmux → note "not available", `resume_prompt` falls to role/pinned.
+- `reload-config` is a live action on every mux (herdr `server reload-config`,
+  tmux `source-file`, cmux `reload-config`): nothing parked, nothing stopped.
+- `install-plugin` on cmux → refused (no plugin system); on tmux it is live (TPM + source-file).
+- on cmux, a window that stops the app waits for cmux's own agent resume
+  (it replays `claude --resume <id> …` itself on relaunch) and types the
+  recorded command only if none appears.
 - `secure park` of an agent whose status is `unknown` → refused without
   `--force` (same rule as `working`: we cannot prove it is safe to type `/exit`).
 
 ## Agent identity without a mux that knows agents
 
-`detect.py`, used by the tmux and cmux backends:
+`detect.py`, used by the tmux backend (cmux has native detection and
+status through its agent hooks; `detect.looks_blocked` still guards its
+prompts):
 
 1. **role/kind** — the existing `classify` on argv (tmux: `ps -t <tty>`;
-   cmux: unavailable → the resume binding's argv, else `shell`).
+   cmux: the hook store's agent kind, argv from `ps -t <tty>`).
 2. **status** — for an agent pane: `blocked` if the last screen lines match
    a known approval/question pattern for that kind (Claude Code
    `Do you want to`, `❯ 1. Yes`, Codex `Allow`, Grok `Approve`); else `idle`
@@ -102,16 +106,16 @@ Planners consult `Capabilities` and turn a missing capability into a
    present (`claude --continue`, …). `build_roster` sets `resume_argv` to
    the fallback when there is no session id **and** no other agent of the
    same kind shares the cwd on that host; otherwise `resume_argv = null`
-   and `set` starts fresh with a note. On cmux the `surface resume show`
-   binding wins when present.
+   and `set` starts fresh with a note. On cmux the hook store's session id
+   is native, and `surface resume show` says whether cmux will replay it.
 
 ## Maintenance actions, per backend
 
 | action | herdr | tmux | cmux |
 |---|---|---|---|
-| `upgrade-mux` (alias `upgrade-herdr`) | as before | cold: park, kill-server, pacman/brew upgrade, new-session, set | park, **manual quit**, brew cask upgrade, **manual relaunch**, `restore-session`, set |
-| `restart-harness` | session stop/start | kill-server / new-session | manual quit+relaunch, `restore-session` |
-| `reload-config` *(new)* | `server reload-config`, live | `source-file`, live | refused |
+| `upgrade-mux` (alias `upgrade-herdr`) | as before | cold: park, kill-server, pacman/brew upgrade, new-session, set | park, AppleScript quit, `brew upgrade --cask cmux` (UNVERIFIED), `open -a cmux`, wait for the app's own resume |
+| `restart-harness` | session stop/start | kill-server / new-session | quit + `open -a cmux`; the app restores workspaces and resumes agents |
+| `reload-config` *(new)* | `server reload-config`, live | `source-file`, live | `reload-config`, live |
 | `install-plugin` | as before | TPM `install_plugins` + `source-file`, live | refused |
 | `upgrade-agents` | unchanged, backend-agnostic | unchanged | unchanged |
 | `omarchy-update` | pacman hosts only | pacman hosts only (tmux on Omarchy) | refused |
@@ -119,8 +123,8 @@ Planners consult `Capabilities` and turn a missing capability into a
 
 "Manual step" is a first-class plan step kind (`StepKind.MANUAL`): exec
 prints the instruction, waits for the operator to confirm (`--yes` does not
-skip it), then continues. It exists because cmux has no CLI to relaunch
-itself; inventing one is exactly what the contract forbids.
+skip it), then continues. No planner emits one any more (the cmux relaunch
+turned out to be scriptable), but the kind stays for a future backend.
 
 ## Sequence deltas (tmux)
 
@@ -151,6 +155,5 @@ Live execution stays behind the MVP gate for every backend.
 
 tmux: approval-prompt patterns per agent kind (heuristic by design);
 `respawn-pane` on a pane whose shell is still alive (use `-k`); TPM path on
-the Macs. cmux: every command is docs-verified only; `list-pane-surfaces
---json` field names; whether the resume binding exposes the agent kind; the
-socket access mode on the owner's Macs; positions for `new-split`.
+the Macs. cmux: `brew upgrade --cask cmux`; agents other than Claude (their
+hooks come from `cmux hooks setup`, not yet run); split positions.

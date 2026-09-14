@@ -157,7 +157,7 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 
 ## Lane 7 (owner: proceed; Mac mini over Tailscale; containers for agents without accounts): CLOSED
 - #2064 viewport now opt-in (mux_options.attach_before_resume).
-- Mac mini (holloway@100.105.4.100, ssh_options -i personal key): docs/macos-facts.md. herdr 0.9 (protocol 22)
+- Mac mini (<user>@<tailscale-ip>, ssh_options -i personal key): docs/macos-facts.md. herdr 0.9 (protocol 22)
   green 4 runs via a launchd GUI-domain throwaway job; tmux over SSH green 2 runs (mechanics; agent logged out).
   Fixed live: ssh_options; BSD/macOS tmux process probe; agent argv from its own process (caffeinate); herdr pre-prompt
   clear by pane; Claude Remote Control park guard + opt-in disconnect. Cleaned up: test agent exited, wbmac servers
@@ -190,3 +190,22 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - grok-build bridge read-only sandbox fails on /run/containerd/containerd.sock here → run with --write and audit git status
 - `omarchy-update --help` opens the confirm TUI; only `-y` is automation-safe
 - argparse: a subcommand option with dest "cmd" clobbers the verb slot
+
+## Lane 8 (owner: "cmux is running with the socket enabled, go probe it"; tmux started on the Mac): CLOSED
+- Probed cmux 0.64.22 over ssh: the CLI reads the saved socket password itself (none passed or recorded). 38 verbs
+  checked; docs/cmux-facts.md rewritten from live output; the docs-only backend replaced.
+- Found: agent hooks give native kind/status/session id (`sessions list`); relaunch keeps workspace+surface UUIDs and
+  resumes hook-tracked agents ITSELF (even after /exit) → restore phase waits for the native resume, types only as a
+  fallback; refs renumber (UUIDs only); `tree` tty is null until drawn (tty via CMUX_SURFACE_ID in `ps -E`);
+  `needsInput` also follows Claude's idle notification (blocked only with a dialog on screen); quit needs
+  app.confirmQuit="never" (set on the Mac, .bak kept) else the AppleScript quit hangs/cancels; `open -a cmux` from ssh
+  lands in the desktop session; `workspace create --json` returns ids, legacy `new-workspace` does not.
+- Bugs on the way: placeholder braces eaten by str.format in the idle poll (KeyError at plan time; pinned);
+  the quit-confirmation doctor check missed inline JSONC keys; roster carried the wrapper's --settings blob.
+- PROVE: 209 tests incl. tests/test_cmux.py on captured fixtures; live `relieve restart-harness --host mac-cmux --yes`
+  green x2 (25 steps, ~36 s; same session id, cmux-native resume, codeword recalled). Cleaned: workspaces, /tmp dir,
+  transcript; the hook store pruned itself.
+- Then (owner): README rewritten as a release document (problem statement, support matrix, upgrade examples across
+  herdr/tmux/cmux hosts), CHANGELOG 0.1.0, version 0.1.0, personal identifiers scrubbed from tests/fixtures/docs.
+- Still unverified: `brew upgrade --cask cmux`; non-Claude agents under cmux hooks; gemini/cursor anywhere.
+

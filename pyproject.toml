@@ -1,14 +1,14 @@
 [project]
 name = "watchbill"
-version = "0.0.1"
-description = "Cockpit CLI that catalogs, parks, and restores coding-agent fleets running inside Herdr 0.8.2 sessions."
+version = "0.1.0"
+description = "Cockpit CLI that catalogs, parks, restores and upgrades fleets of long-running coding agents in Herdr, tmux and cmux, across machines."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "Jack Holloway" }]
-keywords = ["herdr", "coding-agents", "fleet", "cockpit", "tmux"]
+keywords = ["herdr", "tmux", "cmux", "coding-agents", "claude-code", "codex", "fleet", "cockpit"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS",

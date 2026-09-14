@@ -31,14 +31,18 @@ class Probe:
     agent_versions: dict[str, str] = field(default_factory=dict)
     agent_flavors: dict[str, str] = field(default_factory=dict)
     error: str | None = None
+    mux: str = "herdr"
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def summary(self) -> str:
         if not self.reachable:
             return f"{self.host}: unreachable ({self.error})"
         hand = "supported" if self.handoff_supported else "unsupported"
-        return (f"{self.host}: herdr {self.version} proto {self.protocol} flavor={self.flavor} "
-                f"running={self.running} handoff={hand}")
+        proto = f" proto {self.protocol}" if self.protocol is not None else ""
+        warn = "".join(f"\n  warning: {w}" for w in self.warnings)
+        return (f"{self.host}: {self.mux} {self.version}{proto} flavor={self.flavor} "
+                f"running={self.running} handoff={hand}{warn}")
 
 
 def flavor_from(path: str | None, *, pacman_owned: bool = False, home: str = "") -> str:
@@ -112,18 +116,31 @@ def check(hs: HostSession, *, kinds: tuple[str, ...] = ()) -> Probe:
         if p.ok and p.stdout.strip():
             apaths[kind] = p.stdout.strip()
     status = be.parse_status(st.stdout, st.ok)
-    raw = status.raw if be.name == "herdr" else {"running": status.running, "version": status.version, "socket": status.socket,
+    version = status.version
+    if st.ok and not version and hasattr(be, "version_argv"):
+        # cmux: `ping` proves liveness but carries no version; `version` does
+        vr = hs.mux(*be.version_argv())
+        version = be.parse_version(vr.stdout) if vr.ok else None
+    raw = status.raw if be.name == "herdr" else {"running": status.running, "version": version, "socket": status.socket,
                                                  "capabilities": {"live_handoff": False}}
     probe = assess(hs.host.name, raw if st.ok else None, herdr_path,
                    pacman_owned=pacman_owned, agent_versions=versions, agent_paths=apaths,
                    error=None if st.ok else st.stderr.strip() or "status failed")
     if be.caps.live_handoff == "never":
         probe = Probe(**{**probe.__dict__, "handoff_supported": False})
-    return probe
+    warnings = cmux_warnings(hs) if (be.name == "cmux" and st.ok) else []
+    return Probe(**{**probe.__dict__, "mux": be.name, "warnings": warnings})
 
 
-def expect_version(probe: Probe, expected: str | None) -> str | None:
-    """Return an error string when the post-action version does not match."""
-    if expected and probe.version != expected:
-        return f"{probe.host}: expected herdr {expected}, found {probe.version}"
-    return None
+def cmux_warnings(hs: HostSession) -> list[str]:
+    """Read-only check for what a scripted cmux window needs: the quit
+    confirmation off, or the quit step blocks on the dialog. cmux.json is
+    JSONC; comment lines are skipped and the key may sit inline in `app`."""
+    out: list[str] = []
+    r = hs.shell(["sh", "-c", "grep -v '^[[:space:]]*//' ~/.config/cmux/cmux.json 2>/dev/null | "
+                  "grep -o -E '\"(confirmQuit|warnBeforeQuit)\"[[:space:]]*:[[:space:]]*(\"[a-z-]*\"|true|false)'; true"])
+    text = (r.stdout or "") if r.ok else ""
+    if '"never"' not in text and not any(f"warnBeforeQuit{sp}false" in text.replace(" ", "") for sp in (":",)):
+        out.append('app.confirmQuit is not "never" in ~/.config/cmux/cmux.json: a scripted quit (restart-harness, '
+                   'upgrade-mux) will block on the confirmation dialog; set it and run `cmux reload-config`')
+    return out

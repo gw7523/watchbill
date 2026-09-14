@@ -82,6 +82,9 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
         outs.append(r.stdout)
     snap = be.parse_snapshot(outs)
     facts.snapshot = snap
+    if snap.version and not facts.version:   # cmux: `ping` carries no version, the listing does
+        facts.version = snap.version
+        facts.status = {**(facts.status or {}), "version": snap.version}
     _gather_server_env(hs, be, snap, facts, status)
     for pane in snap.panes:
         pi_argv = be.process_info_argv(pane)
@@ -89,7 +92,8 @@ def gather(hs: HostSession, *, excerpts: bool = False, excerpt_lines: int = 40) 
             r = hs.shell(pi_argv) if pi_argv[:2] == ["sh", "-c"] else hs.mux(*pi_argv)
             if r.ok:
                 facts.process_info[pane.pane_id] = be.parse_process_info(pane, r.stdout)
-        want_excerpt = excerpts or be.caps.agent_status == "heuristic"   # tmux needs the screen for status
+        # tmux needs the screen for status; cmux to tell an approval dialog from an idle notification
+        want_excerpt = excerpts or be.caps.agent_status == "heuristic" or be.name == "cmux"
         ex_argv = be.excerpt_argv(pane.pane_id, excerpt_lines) if want_excerpt else None
         if ex_argv:
             r = hs.mux(*ex_argv)
@@ -214,19 +218,32 @@ def _dedupe_workspace_labels(snap: MuxSnapshot) -> dict[str, str]:
 
 
 def _binding_argv(binding: dict | None) -> tuple[list[str] | None, str | None]:
-    """cmux ``surface resume show --json`` → (argv, kind). Field names are
-    UNVERIFIED-LIVE; accept ``command``/``argv``/``resume``."""
+    """cmux ``surface resume show --json`` (0.64.22) → (argv, kind).
+    ``restore_record.prepared_arguments`` is the exact command cmux itself
+    runs on relaunch (``claude --resume <id> --model haiku``); ``kind`` is
+    the agent adapter name. Older field names are accepted as fallbacks."""
     if not binding:
         return None, None
     import shlex
-    cmd = binding.get("argv") or binding.get("command") or binding.get("resume")
+    rec = binding.get("restore_record") or {}
+    rb = binding.get("resume_binding") or {}
+    cmd = rec.get("prepared_arguments") or binding.get("argv") or binding.get("command") or binding.get("resume")
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
     if not cmd:
         return None, None
-    exe = cmd[0].rsplit("/", 1)[-1]
-    kind = next((k for k, e in _classify.AGENT_KINDS.items() if e == exe), None)
+    kind = rec.get("kind") or rb.get("kind")
+    if kind not in _classify.AGENT_KINDS:
+        exe = cmd[0].rsplit("/", 1)[-1]
+        kind = next((k for k, e in _classify.AGENT_KINDS.items() if e == exe), None)
     return list(cmd), kind
+
+
+def _binding_auto_resume(binding: dict | None) -> bool:
+    """True when cmux will run the agent's resume command itself on relaunch
+    (``resume_binding.auto_resume``, granted to agent-hook bindings)."""
+    rb = (binding or {}).get("resume_binding") or {}
+    return bool(rb.get("auto_resume"))
 
 
 def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowlist: _classify.Allowlist | None = None,
@@ -301,6 +318,11 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 if cls.role == "agent":
                     if caps.agent_status == "native":
                         status = pane.agent_status
+                        if hf.mux == "cmux" and status == "blocked" and excerpt and not detect.looks_blocked(cls.kind, excerpt):
+                            # cmux `needsInput` is set by Claude's Notification hook, which fires
+                            # for permission prompts AND for "idle for a while" notices (live,
+                            # 2026-09-14); only a dialog on the screen makes it blocked
+                            status = "idle"
                     elif caps.agent_status == "heuristic":
                         status = detect.agent_status(cls.kind, activity_age_s=pane.activity_age_s, screen=excerpt,
                                                      idle_after_s=host_idle)
@@ -309,6 +331,10 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 else:
                     status = pane.agent_status if caps.agent_status == "native" else None
                 sess = pane.agent_session if (cls.role == "agent" and caps.agent_status == "native") else None
+                if sess and hf.mux == "cmux":
+                    # cmux relaunches a hook-tracked agent itself; set_steps waits
+                    # for that instead of typing a second resume into it
+                    sess = {**sess, "auto_resume": _binding_auto_resume(sf.bindings.get(pid))}
                 sess_val = sess.get("value") if sess else None
                 slot_id = slots.assign(human_id=human_id, host=hf.host, agent_session=sess_val or (binding_argv and " ".join(binding_argv)),
                                        kind=cls.kind, now=now)
@@ -322,6 +348,11 @@ def build_roster(fleet: str, facts: list[HostFacts], *, slots: SlotStore, allowl
                 resume_note = None
                 if cls.role != "agent":
                     resume_argv = None
+                elif hf.mux == "cmux" and binding_argv and sess_val and sess_val in binding_argv:
+                    # cmux's own sanitized resume command (`claude --resume <id> --model …`):
+                    # the wrapper-injected `--settings {hooks…}` is re-added by the wrapper
+                    # when typed into a cmux shell, so carrying it would only bloat the plan
+                    resume_argv = binding_argv
                 elif sess_val:
                     resume_argv = resume.resume_argv(cls.kind, sess_val, cls.argv)
                 elif binding_argv:

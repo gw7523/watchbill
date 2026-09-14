@@ -4,8 +4,9 @@ Same shape as restart-herdr (park agents, session stop, start, attach, set)
 but named for its intent so a chief-of-staff agent can say "install plugin X
 then restart-harness" without reaching for the upgrader. Per mux the planner
 turns "stop"/"start" into `session stop` + start capability (herdr),
-`kill-server` + `new-session -d` (tmux), or MANUAL quit/relaunch +
-`restore-session` (cmux). For a config-only change prefer `reload-config`.
+`kill-server` + `new-session -d` (tmux), or an AppleScript quit + `open -a
+cmux` (cmux, which then resumes its own agents). For a config-only change
+prefer `reload-config`.
 """
 from __future__ import annotations
 

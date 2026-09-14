@@ -22,3 +22,11 @@ never touched.
 |---|---|---|
 | herdr 0.9 throwaway session, launchd GUI start | 4 | same session id and flags every run; codeword recalled 4 times |
 | tmux 3.7c throwaway server over SSH | 2 | agent detected via BSD ps, parked, resumed with flags and `--continue`; recall not provable (agent logged out: SSH-started server) |
+
+## cmux (2026-09-14)
+
+Everything cmux-specific is in [cmux-facts.md](cmux-facts.md): socket auth
+without a password over ssh, agent hooks as the native status source, the
+quit that needs `app.confirmQuit = "never"`, and the relaunch (`open -a
+cmux` from ssh) that restores workspaces and resumes the agents itself.
+Verified twice end to end through `watchbill relieve restart-harness`.

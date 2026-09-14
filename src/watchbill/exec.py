@@ -162,9 +162,10 @@ class Executor:
         """Why did the agent not come up? The last lines of its pane usually say
         (`No conversation found`, a trust dialog, a missing binary)."""
         r = list(raw)
-        if "--pane" not in r:
+        flag = next((f for f in ("--pane", "--surface", "-t") if f in r and r.index(f) + 1 < len(r)), None)
+        if flag is None:
             return ""
-        pane = r[r.index("--pane") + 1]
+        pane = r[r.index(flag) + 1]
         argv = hs.backend.excerpt_argv(pane, 8)
         if not argv:
             return ""

@@ -42,11 +42,11 @@ def blast_radius_table(ctx: ActionContext | None = None) -> dict[str, BlastRadiu
 def per_mux_matrix() -> dict[str, dict[str, str]]:
     """Which actions each mux supports; docs + tests read this."""
     return {
-        "upgrade-mux": {"herdr": "cold (flavor)", "tmux": "cold (brew/pacman)", "cmux": "cask + MANUAL relaunch"},
-        "restart-herdr": {"herdr": "cold", "tmux": "cold (kill-server)", "cmux": "MANUAL quit/relaunch"},
-        "restart-harness": {"herdr": "cold", "tmux": "cold (kill-server)", "cmux": "MANUAL quit/relaunch"},
-        "reload-config": {"herdr": "live", "tmux": "live (source-file)", "cmux": "refused"},
-        "install-plugin": {"herdr": "live, bounce if startup hooks", "tmux": "live (TPM + source-file)", "cmux": "refused"},
+        "upgrade-mux": {"herdr": "cold (flavor)", "tmux": "cold (brew/pacman)", "cmux": "cold (brew cask, UNVERIFIED) + quit/relaunch"},
+        "restart-herdr": {"herdr": "cold", "tmux": "cold (kill-server)", "cmux": "cold (quit app, open -a cmux; app resumes agents)"},
+        "restart-harness": {"herdr": "cold", "tmux": "cold (kill-server)", "cmux": "cold (quit app, open -a cmux; app resumes agents)"},
+        "reload-config": {"herdr": "live", "tmux": "live (source-file)", "cmux": "live (reload-config)"},
+        "install-plugin": {"herdr": "live, bounce if startup hooks", "tmux": "live (TPM + source-file)", "cmux": "refused (no plugin system)"},
         "upgrade-agents": {"herdr": "no stop", "tmux": "no stop", "cmux": "no stop"},
         "omarchy-update": {"herdr": "pacman hosts", "tmux": "pacman hosts", "cmux": "refused"},
         "custom": {"herdr": "declared", "tmux": "declared", "cmux": "declared"},

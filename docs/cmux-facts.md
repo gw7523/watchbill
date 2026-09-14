@@ -1,112 +1,161 @@
 # cmux facts Watchbill relies on
 
-> **Superseded in part (2026-09-13).** The installed cmux CLI on the Mac mini
-> (`cmux --help`) differs from the published reference this file was written
-> from. Verified from that help, not yet live (the app was not running):
-> the socket defaults to `~/.local/state/cmux/cmux.sock` (not `/tmp/cmux.sock`);
-> socket auth takes `--password`, then `CMUX_SOCKET_PASSWORD`, then Settings;
-> the model is window → workspace → pane → surface (`list-panes`,
-> `list-pane-surfaces --pane`, `tree`); `read-screen` and `capture-pane` exist,
-> so screen reads are available; `new-workspace --name --cwd --command --layout`
-> takes a label, cwd and layout; `top --processes --format tsv` lists processes;
-> `new-pane`, `new-surface`, `close-surface`, `rename-workspace`,
-> `reload-config`, `restore <kind> <checkpoint-id>` and `agent-hibernation` exist.
-> The cmux backend still reflects the older, narrower reference and fails
-> closed; rewriting it needs the app running and socket access from SSH.
+Verified live on the Mac mini against **cmux 0.64.22 (102)** over SSH on
+2026-09-14, with a throwaway Claude in a throwaway workspace. The earlier
+docs-only version of this file (from the published CLI reference) is gone:
+the installed CLI differs from it in almost every verb Watchbill needs, and
+everything below was run, not read. `cmux --help`, `cmux docs api`
+(`docs/cli-contract.md` in `manaflow-ai/cmux`) and
+`docs/agent-hooks.md` are the references; the CLI is the authority.
 
-cmux (cmux.com, `manaflow-ai/cmux`) is a native macOS Swift/AppKit terminal
-multiplexer for coding agents. It is **not** installable on the Linux
-cockpit, so every fact here is **docs-verified** (CLI reference at
-`https://cmux.com/docs/api`, README, fetched 2026-09-11) and marked
-UNVERIFIED-LIVE until probed on a Mac. Nothing below was invented; anything
-the docs do not say is listed as absent.
+## Model and identity
 
-## Model
-
-| cmux | Watchbill roster field |
+| cmux | Watchbill roster slot |
 |---|---|
-| app instance (one per user, GUI) | `session` = `"app"` |
-| workspace (`CMUX_WORKSPACE_ID`) | `workspace_label` (rename via ⌘⇧R; list gives id + title) |
-| panel (a split) | `tab_label` (`panel<n>`; docs call splits "panels") |
-| surface (`CMUX_SURFACE_ID`; a terminal or browser tab inside a panel) | `pane_label` (`s<n>`), `live_ids.pane_id` = surface id |
+| the running app (one per user, GUI) | `session` (the name in hosts.toml is cosmetic; `app` by convention) |
+| window → workspace (title, `current_directory`) | `workspace_label` |
+| pane (a split inside a workspace) | `tab_label` = `pane<n>` |
+| surface (a terminal or browser tab inside a pane; `CMUX_SURFACE_ID`) | `pane_label` = `s<n>`, `live_ids.pane_id` = surface UUID |
 
-Identifiers come back as refs or uuids (`--id-format refs|uuids|both`).
-Watchbill stores uuids in `live_ids` and refs nowhere.
+Handles: every command takes a UUID, a ref (`workspace:2`, `surface:1`) or
+an index. **Refs are positional and renumber** whenever a workspace closes
+or the app relaunches (the probe workspace was `workspace:2` before a
+relaunch and `workspace:1` after). Watchbill stores and targets UUIDs only
+(`--id-format uuids|both`). Workspace and surface UUIDs survive a quit and
+relaunch verbatim; pane UUIDs are re-minted (as `docs/agent-session-
+tracking-spec.md` says: the surface id is the durable binding key).
 
-## Socket (docs-verified)
+## Socket and auth
 
-`/tmp/cmux.sock` (release) or `/tmp/cmux-debug.sock`; `CMUX_SOCKET_PATH`
-overrides. Newline-terminated JSON-RPC:
+Socket: `~/.local/state/cmux/cmux.sock` (`last-socket-path` next to it).
+Auth: `--password`, then `CMUX_SOCKET_PASSWORD`, then the password saved in
+Settings — and the CLI run as the same user reads the saved one itself, so
+**no password is passed over SSH or recorded anywhere**. `cmux ping` →
+`PONG` iff the app answers; `cmux version` prints the CLI's own version
+(`cmux 0.64.22 (102) [ddd4a01bc]`), so it is not a liveness test.
+`CMUX_QUIET=1` silences alias notices such as `list-workspaces is now an
+alias for workspace list`.
 
-```
-{"id":"req-1","method":"workspace.list","params":{}}
-{"id":"req-1","ok":true,"result":{...}}
-```
+## Listing (read-only)
 
-Access modes: `off`, "cmux processes only" (default: only processes spawned
-inside cmux terminals may connect), `allowAll`. **Consequence:** a Watchbill
-run over SSH is not a cmux-spawned process; the Mac must be set to
-`allowAll` or Watchbill's remote command must be launched from a cmux
-surface. The default mode makes remote `roll` fail closed, which is
-acceptable; doctor reports it.
+| verb | gives |
+|---|---|
+| `--json --id-format both tree --all` | windows → workspaces (id, ref, title, index) → panes (id, ref) → surfaces (id, ref, title, type, tty). `tty` is **null for a surface that has not been drawn**, so it is not relied on. |
+| `--json --id-format both workspace list` | `current_directory` per workspace (env is deliberately omitted from this listing). |
+| `--json --id-format uuids top --all --processes` | pids attributed per surface (`attributions[].surface_id`, `reason: surface-process-tree`; the shell is the oldest) and `coding_agents[]` (kind + pids) — ~35 KB for two workspaces. |
+| `--json sessions list --all` | the agent hook store: `agent`, `agent_lifecycle`, `session_id`, `surface_id`, `workspace_id`, `pid`, `cwd`, `is_restorable`, `launch_arguments`, `active_for_surface`. Works without the socket. `--surface <uuid>` filters. |
+| `--json surface resume show --surface S` | `restore_record.prepared_arguments` = the exact command cmux runs on relaunch (`claude --resume <id> --model haiku`), `restore_record.kind`, `resume_binding.auto_resume`, `permission_mode`. `null` until the agent's first hook fires. |
+| `read-screen --surface S --lines N` | the visible screen (also `capture-pane`, the tmux-compat alias). |
+| `--json workspace env --workspace W` | the per-workspace environment cmux injects (`count`, `env`). |
+| `capabilities`, `identify`, `list-panes`, `list-pane-surfaces` | as named; `list-surfaces` does not exist. |
 
-## CLI (docs-verified)
+Process info therefore comes from the process table, as on tmux: every
+process cmux spawns carries `CMUX_SURFACE_ID=<uuid>` in its environment.
+`ps -axE -o tty=,command= | grep CMUX_SURFACE_ID=<uuid> | awk '$1 ~ /^tty/'`
+finds the surface's tty (some matches have tty `??`; the first `ttys…` row
+wins), then `ps -t <tty> -o pid=,ppid=,stat=,args=` lists what runs on it
+and `lsof -p <pid> -d cwd` gives the cwd. The rows for a Claude surface:
+`login` (Ss), the shell (S), and the agent (S+). The cmux Claude wrapper
+starts the agent as `claude --session-id <uuid> --settings {hooks…} --model
+…`, so the resume tables must drop `--session-id` (they do).
 
-```
-cmux list-workspaces [--json]          cmux new-workspace
-cmux select-workspace --workspace ID   cmux close-workspace --workspace ID
-cmux current-workspace [--json]
-cmux list-panels [--json]              cmux list-pane-surfaces [--json]
-cmux new-split left|right|up|down      cmux focus-panel --panel ID
-cmux send [--surface ID] "text"        cmux send-key [--surface ID] enter|tab|escape|backspace|delete|up|down|left|right
-cmux notify --title T --body B [--subtitle S]
-cmux surface resume set|show --json|clear     # per-surface resume command binding
-cmux hooks setup [codex | --agent opencode]   # installs agent resume hooks
-cmux restore-session                          # re-apply the last saved snapshot
-cmux local-tmux | ssh-tmux | mosh-tmux        # tmux-owned persistence variants
-cmux ping | capabilities [--json] | identify [--json]
+## Agent hooks: detection, status, resume — all native
 
-# sidebar / notification surface (documented; Watchbill only reads these)
-cmux list-notifications [--json]   cmux clear-notifications
-cmux notify --title T --body B [--subtitle S]
-cmux set-status <key> <value> [--icon --color --priority --workspace]
-cmux clear-status <key> | list-status | set-progress <0.0-1.0> --label T | clear-progress
-cmux log "msg" [--level ...] | clear-log | list-log [--limit N] | sidebar-state [--workspace ID]
-```
+The **Claude Code integration** (Settings; on by default here) wraps
+`claude`: it injects `--session-id` and a `--settings` JSON whose hooks
+call `cmux hooks claude <event>`. Other agents get hooks from `cmux hooks
+setup` (codex, grok, opencode, gemini, cursor, … see `docs/agent-hooks.md`).
+The hooks write `~/.cmuxterm/<agent>-hook-sessions.json`:
 
-Global flags: `--socket PATH`, `--json`, `--window ID`, `--workspace ID`,
-`--surface ID`, `--id-format refs|uuids|both`.
+| field | Watchbill use |
+|---|---|
+| `sessionId`, `surfaceId`, `workspaceId`, `cwd`, `pid` | `agent_session.value`, the pane it lives in |
+| `agentLifecycle`: `unknown` → `idle` (SessionStart / Stop) → `running` (UserPromptSubmit) → `needsInput` (Notification / PermissionRequest) | `agent_status`: unknown / idle / working / blocked. **A freshly resumed agent reads `unknown` until its first turn**, and **`needsInput` also follows Claude's idle notification** (a minute after a reply, no dialog on screen), so Watchbill downgrades it to `idle` unless the screen shows an approval pattern. |
+| `isRestorable`, `launchCommand` (sanitized: model/config flags kept, prompts and credentials dropped) | what cmux will replay |
+| `lastPermissionMode` | recorded permission mode |
 
-Environment injected into cmux terminals: `CMUX_WORKSPACE_ID`,
-`CMUX_SURFACE_ID`, `CMUX_SOCKET_PATH`, `CMUX_SOCKET_MODE`,
-`TERM_PROGRAM=ghostty`, `TERM=xterm-ghostty`.
+Lifecycle observed live: `unknown` at start (trust dialog pending) → `idle`
+after the first reply → `needsInput` on an idle notification → `unknown`
+again after a relaunch until the next turn. The store is read through
+`cmux sessions list`, never parsed from disk by Watchbill.
 
-## Persistence
+## Relaunch restores everything, including the agents
 
-Quitting cmux saves the session; relaunch restores window/workspace/pane
-layout, working directories, scrollback (best effort), browser state. It
-"does not checkpoint arbitrary live process state" — agents are gone after
-a quit, exactly the Herdr cold-restart situation. `cmux surface resume
-set/show` is cmux's own answer: a per-surface resume command that
-`cmux hooks setup` wires for Claude Code, Codex and OpenCode. That binding
-is the closest thing to Herdr's `agent_session`, and Watchbill reads it
-(`surface resume show --json`) as the resume source of truth on cmux.
+Verified three times (SIGTERM once, AppleScript quit twice):
 
-## Absent from the docs (fail closed until probed)
+1. quit or kill the app → every terminal dies with it (the agent process is
+   gone within a second);
+2. `open -a cmux` **from an ssh shell** relaunches it in the logged-in
+   desktop session (socket answers after ~2 s; keychain, hooks and
+   notifications work — unlike an ssh-started herdr or tmux server on macOS);
+3. cmux rebuilds every workspace with the **same workspace and surface
+   UUIDs**, then runs each restorable binding's `prepared_arguments` itself:
+   `claude --resume <id> --model haiku`, new pid, same session id;
+4. the resumed Claude recalled the codeword from before the relaunch.
 
-- Whether `list-panels` lists *panels* or *surfaces*: the published reference
-  describes it as "List all surfaces in the current workspace", which sits
-  badly against panels→tabs. **Probe before trusting the tab/pane split.**
-- Any command that lists a surface's **cwd, pid, or foreground process**.
-  `list-pane-surfaces --json` field names are unknown. Until probed, cmux
-  occupants get `role` from the resume binding (agent) or `shell`, cwd from
-  the restore snapshot if exposed, else empty.
-- Any **screen read** (`capture`-like) → no excerpts on cmux.
-- Any **agent status** → `unknown`; `secure` needs `--force` unless the
-  resume binding says the surface is an agent that is idle (not knowable).
-- A headless or daemon mode, or a CLI to quit/relaunch the app. `restart-harness`
-  on cmux is documented as a **manual** step (quit the app, relaunch,
-  `cmux restore-session`) that Watchbill waits on, never performs.
-- Kill-server semantics: there is no server; "dismiss" is `close-workspace`.
-- Live config reload, plugin install: absent. `reload-config` and
-  `install-plugin` refuse on cmux.
+This holds **after a graceful `/exit` too**: the binding stays
+`isRestorable: true`, `auto_resume: true`, and the relaunch resumes the
+parked agent. Consequence for Watchbill: in any window that stops the app,
+the restore phase *waits* for cmux's own resume (`agent_native_resume_wait`:
+agent process in the surface's foreground) and only types the recorded
+resume command itself when nothing has appeared after a third of the wait.
+Typing it unconditionally would land inside the already-running agent.
+Turn the behaviour off in cmux with **Settings > Terminal > Resume Agent
+Sessions on Reopen** (`terminal.autoResumeAgentSessions: false`); the
+fallback then starts the agents.
+
+## Quitting the app from a script
+
+`osascript -e 'tell application "cmux" to quit'` from ssh works — **only
+with `app.confirmQuit = "never"`** in `~/.config/cmux/cmux.json` (applied
+live by `cmux reload-config`). With the default `always` the quit hangs on
+the confirmation dialog (`AppleEvent timed out (-1712)`), a second quit
+while that dialog is up is answered `User canceled (-128)`, and the app
+stays running. `kill -TERM <pid>` also works (the session snapshot is kept
+continuously, so restore was complete) but skips the app's own shutdown;
+Watchbill uses the AppleScript quit and fails the step with the config hint
+when the app is still alive after 25 s. `doctor` warns when the setting is
+not `never`. `warnBeforeClosingTab = false` likewise lets `close-workspace`
+close a workspace whose terminal has a running process without a dialog.
+No socket method quits or relaunches the app (`capabilities` lists 303
+methods; `app.*` has only focus overrides).
+
+Owner's Mac mini, 2026-09-14: `~/.config/cmux/cmux.json` carries
+`"app": { "confirmQuit": "never", "warnBeforeClosingTab": false,
+"warnBeforeClosingTabXButton": false }` (the pristine template is next to
+it as a timestamped `.bak`).
+
+## Input
+
+| verb | verified |
+|---|---|
+| `send --surface S <text>` | literal text (`/exit`, prompts with spaces) |
+| `send-key --surface S <key>` | `enter`, `escape`, `ctrl-c` (→ `^C`), `ctrl-u`, `cmd-c` accepted; `C-c`, `^C`, `c-u` → `Unknown key` |
+| `/exit` typed into Claude | agent gone in ~1 s; the surface's shell survives (`Resume this session with: claude --resume …`) |
+
+## Creating and closing
+
+| verb | verified |
+|---|---|
+| `--json --id-format uuids workspace create --name L --cwd D --focus false [--env K=V …]` | JSON `{workspace_id, surface_id, window_id}`; env is inherited by every shell in the workspace and re-applied on restore |
+| `new-workspace …` (legacy) | same, but prints only `OK workspace:N` (a ref), even with `--json` |
+| `--json --id-format uuids new-split right --surface S --focus false [--command …]` | JSON `{pane_id, surface_id, …}`; `--command` is typed into the new interactive shell with one Enter |
+| `close-workspace --workspace W` | `OK workspace:N`; needs `warnBeforeClosingTab = false` when a process runs there |
+| `select-workspace --workspace W` | changes the app's selection (visible on the user's screen: avoided) |
+| `reload-config` | `OK Reloaded config`; re-reads `cmux.json` and the Ghostty config in place |
+
+Watchbill's shape rebuild rarely runs on cmux: after a relaunch every
+workspace is already back with its UUIDs, so the create steps are skipped by
+the reuse hints. A Watchbill tab (cmux pane) is recreated as a right split
+of the workspace; extra surfaces inside one pane are not recreated.
+
+## Absent or unused
+
+`agent-hibernation on|off` (opt-in; kills idle background agents and
+resumes them on focus — off on this Mac), `restore-session` (restore the
+previous saved session into a running app; not needed, relaunch does it),
+`local-tmux` (cmux surfaces attached to a tmux server under
+`~/.cmux/local-tmux`; a tmux-backed cmux would be a `mux = "tmux"` host),
+`vault`/`fork`, notifications, todo, browser, Cloud VMs. No plugin system,
+no live handoff on upgrade. `brew upgrade --cask cmux` remains
+UNVERIFIED-LIVE.

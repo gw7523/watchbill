@@ -112,10 +112,10 @@ def test_set_never_restores_it(excluded_roster, fleet, probes):
 
 
 def test_ssh_options_reach_every_ssh_invocation():
-    f = hosts.parse('[[host]]\nname = "mac"\ntarget = "holloway@100.105.4.100"\nssh_options = ["-i", "~/.ssh/id_x"]\n', hostname="rig2")
+    f = hosts.parse('[[host]]\nname = "mac"\ntarget = "user@100.64.0.9"\nssh_options = ["-i", "~/.ssh/id_x"]\n', hostname="rig2")
     h = f.host("mac")
     assert h.ssh_options[0] == "-i" and h.ssh_options[1].endswith("/.ssh/id_x") and not h.ssh_options[1].startswith("~")
     argv = make_session(h, "default").mux_argv("agent", "list")
-    assert argv[argv.index("-i") + 1] == h.ssh_options[1] and argv.index("-i") < argv.index("holloway@100.105.4.100")
+    assert argv[argv.index("-i") + 1] == h.ssh_options[1] and argv.index("-i") < argv.index("user@100.64.0.9")
     with pytest.raises(ValueError):
         hosts.parse('[[host]]\nname = "x"\ntarget = "x"\nssh_options = "-i key"\n')

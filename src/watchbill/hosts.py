@@ -44,6 +44,10 @@ DEFAULT_START = ("if command -v setsid >/dev/null 2>&1; "
                  "then setsid -f herdr --session {session} server </dev/null >/dev/null 2>&1; "
                  "else (nohup herdr --session {session} server </dev/null >/dev/null 2>&1 &); fi")
 DEFAULT_ATTACH = "herdr session attach {session}"
+# cmux is a GUI app: `open -a cmux` from an ssh shell relaunches it in the
+# logged-in desktop session (verified on the Mac mini, 2026-09-14), where it
+# restores its workspaces and resumes hook-tracked agents itself.
+DEFAULT_START_BY_MUX = {"cmux": "open -a cmux"}
 
 
 @dataclass
@@ -146,7 +150,7 @@ def parse(text: str, *, hostname: str | None = None) -> Fleet:
         hosts.append(Host(
             name=h["name"], target=h.get("target"), transport=transport,
             sessions=list(h.get("sessions", ["default"])), cockpit=bool(h.get("cockpit", False)),
-            start=h.get("start", DEFAULT_START), attach=h.get("attach", DEFAULT_ATTACH),
+            start=h.get("start", DEFAULT_START_BY_MUX.get(h.get("mux", "herdr"), DEFAULT_START)), attach=h.get("attach", DEFAULT_ATTACH),
             herdr_bin=h.get("herdr_bin", "herdr"), connect_timeout=int(h.get("connect_timeout", 5)),
             mux=mux, mux_options=dict(h.get("mux_options", {})),
             exec_prefix=list(exec_prefix), exclude=list(exclude), ignore=list(ignore),

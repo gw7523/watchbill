@@ -7,8 +7,9 @@ stops the session (cold). Per mux:
 * tmux — the running server keeps the old binary, so the window is cold:
   park, ``kill-server``, ``brew upgrade tmux`` / ``pacman -S tmux``,
   ``new-session -d``, set.
-* cmux — ``brew upgrade --cask cmux`` then a MANUAL relaunch and
-  ``restore-session``; nothing else is documented.
+* cmux — park, quit the app, ``brew upgrade --cask cmux`` (UNVERIFIED-LIVE:
+  never run), ``open -a cmux``; the app restores its workspaces and resumes
+  its hook-tracked agents itself.
 """
 from __future__ import annotations
 

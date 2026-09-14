@@ -1,0 +1,71 @@
+{
+  "cleared" : false,
+  "pane_ref" : "pane:1",
+  "restore_record" : {
+    "checkpoint_id" : "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+    "environment" : {
+
+    },
+    "kind" : "claude",
+    "launch_command" : {
+      "arguments" : [
+        "/Users/user/.local/bin/claude",
+        "--model",
+        "haiku"
+      ],
+      "captured_at" : 1789393972.3635311,
+      "environment" : null,
+      "executable_path" : "/Users/user/.local/bin/claude",
+      "launcher" : "claude",
+      "source" : "environment",
+      "working_directory" : "/private/tmp/wb-cmux"
+    },
+    "legacy_command" : "cd -- '/private/tmp/wb-cmux' 2>/dev/null || [ ! -d '/private/tmp/wb-cmux' ] && /bin/sh -c '\"$([ -x \"${CMUX_CLAUDE_WRAPPER_SHIM:-}\" ] && printf '\\''%s'\\'' \"$CMUX_CLAUDE_WRAPPER_SHIM\" || printf claude)\" '\\''--resume'\\'' '\\''816f2237-f722-4976-939a-f0d1d1e9c6dd'\\'' '\\''--model'\\'' '\\''haiku'\\'''\n",
+    "mode" : "resumeAgent",
+    "permission_mode" : "default",
+    "prepared_arguments" : [
+      "claude",
+      "--resume",
+      "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+      "--model",
+      "haiku"
+    ],
+    "prepared_arguments_working_directory" : "/private/tmp/wb-cmux",
+    "source" : "session-snapshot",
+    "working_directory" : "/private/tmp/wb-cmux"
+  },
+  "resume_binding" : {
+    "approval_policy" : "auto",
+    "approval_record_id" : null,
+    "auto_resume" : true,
+    "checkpoint_id" : "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+    "command" : "cd -- '/private/tmp/wb-cmux' 2>/dev/null || [ ! -d '/private/tmp/wb-cmux' ] && /bin/sh -c '\"$([ -x \"${CMUX_CLAUDE_WRAPPER_SHIM:-}\" ] && printf '\\''%s'\\'' \"$CMUX_CLAUDE_WRAPPER_SHIM\" || printf claude)\" '\\''--resume'\\'' '\\''816f2237-f722-4976-939a-f0d1d1e9c6dd'\\'' '\\''--model'\\'' '\\''haiku'\\'''",
+    "cwd" : "/private/tmp/wb-cmux",
+    "environment" : null,
+    "execution_location" : "local",
+    "kind" : "claude",
+    "launch_command" : {
+      "arguments" : [
+        "/Users/user/.local/bin/claude",
+        "--model",
+        "haiku"
+      ],
+      "captured_at" : 1789393972.3635311,
+      "environment" : null,
+      "executable_path" : "/Users/user/.local/bin/claude",
+      "launcher" : "claude",
+      "source" : "environment",
+      "working_directory" : "/private/tmp/wb-cmux"
+    },
+    "name" : "Claude Code",
+    "permission_mode" : "default",
+    "remote_pty_session_id" : null,
+    "remote_surface_id" : null,
+    "remote_workspace_id" : null,
+    "source" : "agent-hook",
+    "updated_at" : 1789394010.936398
+  },
+  "surface_ref" : "surface:1",
+  "window_ref" : "window:1",
+  "workspace_ref" : "workspace:1"
+}

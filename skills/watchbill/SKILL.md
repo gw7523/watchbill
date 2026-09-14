@@ -38,16 +38,19 @@ word, ask, quoting the flag and what it does.
 `hosts.toml` gives each host a `mux`: **herdr** (knows its agents natively),
 **tmux** (Watchbill derives role from argv and status from quiet time plus
 approval-prompt patterns — an `idle` there is a *guess*, flagged in the
-roster as `status: heuristic`), or **cmux** (macOS; only what the published
-CLI documents, so quitting and relaunching the app are `MANUAL` steps the
-human performs while Watchbill waits).
+roster as `status: heuristic`), or **cmux** (macOS; its agent hooks give
+native status and session ids, Watchbill quits and relaunches the app
+itself, and the app resumes its own agents — Watchbill waits for that).
 
 Tell the human when these bite:
 
 - tmux and cmux have no live handoff, so `relieve --mode live` is refused.
 - tmux agents resume with their cwd-scoped `--continue`; when two agents of
   one kind share a directory Watchbill refuses to guess and starts fresh.
-- `reload-config` is live on herdr and tmux, refused on cmux.
+- `reload-config` is live on every mux.
+- A cmux quit needs `app.confirmQuit = "never"` in `~/.config/cmux/cmux.json`
+  (doctor warns); a freshly relaunched cmux agent reads `unknown` until its
+  first turn, so park it after a prompt or with `--force`.
 - A tmux occupant whose status is `unknown` needs `--force` to park, exactly
   like a `working` one.
 - An occupant marked `excluded` in the roster is out of scope by the human's

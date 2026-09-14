@@ -1,0 +1,148 @@
+{
+  "window_id" : "DD44747C-B80B-4CB9-AB3F-2D96D846F708",
+  "window_ref" : "window:1",
+  "workspaces" : [
+    {
+      "current_directory" : "/tmp",
+      "custom_color" : null,
+      "custom_title" : "wbprobe",
+      "description" : null,
+      "has_custom_title" : true,
+      "id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5",
+      "index" : 0,
+      "latest_conversation_message" : null,
+      "latest_submitted_at" : null,
+      "latest_submitted_message" : null,
+      "listening_ports" : [
+
+      ],
+      "pinned" : false,
+      "ref" : "workspace:1",
+      "remote" : {
+        "active_terminal_sessions" : 0,
+        "conflicted_ports" : [
+
+        ],
+        "connected" : false,
+        "daemon" : {
+          "capabilities" : [
+
+          ],
+          "detail" : null,
+          "name" : null,
+          "remote_path" : null,
+          "state" : "unavailable",
+          "version" : null
+        },
+        "destination" : null,
+        "detail" : null,
+        "detected_ports" : [
+
+        ],
+        "enabled" : false,
+        "forwarded_ports" : [
+
+        ],
+        "has_identity_file" : false,
+        "has_ssh_options" : false,
+        "heartbeat" : {
+          "age_seconds" : null,
+          "count" : 0,
+          "last_seen_at" : null
+        },
+        "local_proxy_port" : null,
+        "persistent_daemon_slot" : null,
+        "port" : null,
+        "proxy" : {
+          "error_code" : null,
+          "host" : null,
+          "port" : null,
+          "schemes" : [
+            "socks5",
+            "http_connect"
+          ],
+          "state" : "unavailable",
+          "url" : null
+        },
+        "state" : "disconnected",
+        "terminal_profile" : null,
+        "terminal_tmux_session" : null,
+        "terminal_transport" : null,
+        "transport" : null
+      },
+      "selected" : false,
+      "title" : "wbprobe"
+    },
+    {
+      "current_directory" : "/Users/user",
+      "custom_color" : null,
+      "custom_title" : null,
+      "description" : null,
+      "has_custom_title" : false,
+      "id" : "BF65DC79-7A80-4E45-BF8F-84C3D9959072",
+      "index" : 1,
+      "latest_conversation_message" : null,
+      "latest_submitted_at" : null,
+      "latest_submitted_message" : null,
+      "listening_ports" : [
+
+      ],
+      "pinned" : false,
+      "ref" : "workspace:2",
+      "remote" : {
+        "active_terminal_sessions" : 0,
+        "conflicted_ports" : [
+
+        ],
+        "connected" : false,
+        "daemon" : {
+          "capabilities" : [
+
+          ],
+          "detail" : null,
+          "name" : null,
+          "remote_path" : null,
+          "state" : "unavailable",
+          "version" : null
+        },
+        "destination" : null,
+        "detail" : null,
+        "detected_ports" : [
+
+        ],
+        "enabled" : false,
+        "forwarded_ports" : [
+
+        ],
+        "has_identity_file" : false,
+        "has_ssh_options" : false,
+        "heartbeat" : {
+          "age_seconds" : null,
+          "count" : 0,
+          "last_seen_at" : null
+        },
+        "local_proxy_port" : null,
+        "persistent_daemon_slot" : null,
+        "port" : null,
+        "proxy" : {
+          "error_code" : null,
+          "host" : null,
+          "port" : null,
+          "schemes" : [
+            "socks5",
+            "http_connect"
+          ],
+          "state" : "unavailable",
+          "url" : null
+        },
+        "state" : "disconnected",
+        "terminal_profile" : null,
+        "terminal_tmux_session" : null,
+        "terminal_transport" : null,
+        "transport" : null
+      },
+      "selected" : true,
+      "title" : "~"
+    }
+  ]
+}

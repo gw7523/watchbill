@@ -283,6 +283,9 @@ def check_verbs_allowed(steps: Iterable[Step], *, force_server_stop: bool = Fals
             bad.append(f"{s.id}: herdr server stop requires --force-server-stop")
         if s.mux == "tmux" and v == ("kill-server",) and not (force_server_stop or s.planned_stop):
             bad.append(f"{s.id}: unplanned tmux kill-server requires --force-server-stop")
+        if (s.mux == "cmux" and s.via == "shell" and "to quit" in " ".join(s.raw or ())
+                and not (force_server_stop or s.planned_stop)):
+            bad.append(f"{s.id}: unplanned cmux quit requires --force-server-stop")
         if v and v[0] == "machine":
             bad.append(f"{s.id}: herdr machine is not a 0.8.2 dependency")
     return bad

@@ -29,7 +29,7 @@ RELIEVE_ACTIONS = tuple(actions.REGISTRY)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="watchbill", description="Watchbill: catalog, park, and restore coding-agent fleets in Herdr 0.8.2 sessions.",
+    p = argparse.ArgumentParser(prog="watchbill", description="Watchbill: catalog, park, restore and upgrade coding-agent fleets in Herdr, tmux and cmux, across machines.",
                                 formatter_class=argparse.RawDescriptionHelpFormatter,
                                 epilog="Exit codes: 0 ok · 1 partial · 2 usage · 3 refused · 4 transport/action error")
     p.add_argument("--version", action="version", version=f"watchbill {__version__}")
@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     _globals(common, argparse.SUPPRESS)   # the same flags are accepted after the verb
     sub = p.add_subparsers(dest="cmd", metavar="<verb>", parser_class=lambda **kw: argparse.ArgumentParser(parents=[common], **kw))
 
-    s = sub.add_parser("roll", help="catalog every occupant of every known Herdr server (read-only)")
+    s = sub.add_parser("roll", help="catalog every occupant of every known mux session (read-only)")
     s.add_argument("--explain", action="store_true", help="show which classify rule fired")
     s.add_argument("--excerpts", action="store_true", help="also read the last screen lines (cockpit-local)")
 
@@ -70,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         s.add_argument("--mode", choices=plan_relieve.MODES, default="cold")
         s.add_argument("--rolling", dest="rolling", action="store_true", default=True, help="one host at a time (always; kept for the contract's CLI shape)")
         s.add_argument("--resume", action="store_true", help="skip hosts marked set-complete in the last run")
-        s.add_argument("--expected-version", help="doctor must see this herdr version after the action")
+        s.add_argument("--expected-version", help="doctor must see this mux version after the action")
         s.add_argument("--allow-reboot", action="store_true", help="operator gate: let an action that may reboot proceed (never the cockpit)")
         s.add_argument("--may-reboot", action="store_true", help="custom: declare that --cmd can reboot the host")
         s.add_argument("--force", action="store_true")

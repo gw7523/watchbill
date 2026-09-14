@@ -1,0 +1,174 @@
+{
+  "default_codex_home" : "/Users/user/.codex",
+  "limit" : null,
+  "sessions" : [
+    {
+      "active_for_surface" : true,
+      "active_for_workspace" : true,
+      "active_prompt_turn_id" : null,
+      "active_surface_session_id" : "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+      "active_workspace_session_id" : "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+      "agent" : "claude",
+      "agent_display_name" : "Claude Code",
+      "agent_lifecycle" : "unknown",
+      "cwd" : "/private/tmp/wb-cmux",
+      "default_visible" : true,
+      "fork_command_available" : true,
+      "fork_startup_input_available" : true,
+      "fork_supported" : true,
+      "fork_unavailable_reason" : "available",
+      "hook_record_restorable" : true,
+      "is_restorable" : true,
+      "last_prompt_turn_id" : null,
+      "launch_arguments" : [
+        "/Users/user/.local/bin/claude",
+        "--model",
+        "haiku"
+      ],
+      "launch_backed" : true,
+      "launch_working_directory" : "/private/tmp/wb-cmux",
+      "pid" : 78320,
+      "runtime_status" : null,
+      "session_dir" : null,
+      "session_home" : null,
+      "session_id" : "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+      "stale_pid_blocks_restore_in_0_64_17" : true,
+      "started_at" : "2026-09-14T13:46:00.033Z",
+      "store_path" : "/Users/user/.cmuxterm/claude-hook-sessions.json",
+      "stored_pid_arguments" : [
+        "/Users/user/.local/bin/claude",
+        "--settings",
+        "{\"preferredNotifChannel\":\"notifications_disabled\",\"hooks\":{\"SessionStart\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude session-start\",\"timeout\":10}]}],\"Stop\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude stop\",\"timeout\":10}]},{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks feed --source claude\",\"timeout\":10,\"async\":true}]},{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude auto-name\",\"timeout\":120,\"async\":true}]}],\"SubagentStop\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks feed --source claude\",\"timeout\":10,\"async\":true}]}],\"SessionEnd\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude session-end\",\"timeout\":1}]}],\"Notification\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude notification\",\"timeout\":10}]}],\"UserPromptSubmit\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude prompt-submit\",\"timeout\":10}]}],\"PreToolUse\":[{\"matcher\":\"CronCreate\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude cron-create-guard\",\"timeout\":5}]},{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude pre-tool-use\",\"timeout\":5,\"async\":true}]}],\"PostToolUse\":[{\"matcher\":\"PushNotification\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks claude push-notification\",\"timeout\":10,\"async\":true}]}],\"PermissionRequest\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}\\\" hooks feed --source claude\",\"timeout\":125}]}]}}",
+        "--resume",
+        "816f2237-f722-4976-939a-f0d1d1e9c6dd",
+        "--model",
+        "haiku"
+      ],
+      "stored_pid_exists" : true,
+      "surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+      "transcript_backed" : true,
+      "transcript_path" : "/Users/user/.claude/projects/-private-tmp-wb-cmux/816f2237-f722-4976-939a-f0d1d1e9c6dd.jsonl",
+      "updated_at" : "2026-09-14T13:56:17.702Z",
+      "updated_at_unix" : 1789394177.7024031,
+      "workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5"
+    }
+  ],
+  "state_dir" : "/Users/user/.cmuxterm",
+  "stores" : [
+    {
+      "agent" : "claude",
+      "exists" : true,
+      "path" : "/Users/user/.cmuxterm/claude-hook-sessions.json",
+      "session_count" : 1
+    },
+    {
+      "agent" : "codex",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/codex-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "grok",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/grok-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "opencode",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/opencode-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "pi",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/pi-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "omp",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/omp-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "campfire",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/campfire-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "amp",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/amp-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "cursor",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/cursor-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "gemini",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/gemini-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "kiro",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/kiro-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "antigravity",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/antigravity-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "rovodev",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/rovodev-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "hermes-agent",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/hermes-agent-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "copilot",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/copilot-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "codebuddy",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/codebuddy-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "factory",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/factory-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "qoder",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/qoder-hook-sessions.json",
+      "session_count" : 0
+    },
+    {
+      "agent" : "kimi",
+      "exists" : false,
+      "path" : "/Users/user/.cmuxterm/kimi-hook-sessions.json",
+      "session_count" : 0
+    }
+  ],
+  "total_matches" : 1
+}

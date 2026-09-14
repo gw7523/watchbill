@@ -43,7 +43,7 @@ def test_docs_exist_with_sequences():
 
 def test_agent_bootstrap_files():
     agents = (ROOT / "AGENTS.md").read_text()
-    for must in ("docs/kickoff-prompt.md", "docs/architecture.md", "docs/herdr-0.8.2-facts.md", "implement MVP next",
+    for must in ("docs/kickoff-prompt.md", "docs/architecture.md", "docs/herdr-0.8.2-facts.md", "initial release",
                  "uv run pytest", "--force", "herdr update", "omarchy-update"):
         assert must in agents
     assert "AGENTS.md" in (ROOT / "CLAUDE.md").read_text()

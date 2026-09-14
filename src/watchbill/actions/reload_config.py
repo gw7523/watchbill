@@ -2,7 +2,8 @@
 
 herdr: ``herdr --session S server reload-config``. tmux: ``tmux -L S
 source-file ~/.tmux.conf``. Both are live: nothing parked, nothing stopped.
-cmux documents no reload → refused. This is the action to reach for after
+cmux: ``cmux reload-config`` (re-reads ~/.config/cmux/cmux.json and the
+Ghostty config in place; verified 0.64.22). This is the action to reach for after
 editing keybindings or theme; ``restart-harness`` is for changes that need
 the server process replaced.
 """

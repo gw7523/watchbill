@@ -40,7 +40,7 @@ Observed sample (alpha has two windows, the first split in two):
 alpha|1|edit|1|%0|3345069|sleep|/tmp|RIG2|0|1789159586|40x24|0,0
 alpha|1|edit|2|%1|3345072|sleep|/tmp|RIG2|1|1789159586|39x24|41,0
 alpha|2|logs|1|%2|3345075|sleep|/tmp|RIG2|1|1789159586|80x24|0,0
-beta|1|tmp|1|%3|3345078|bash|/tmp|holloway@RIG2:/tmp|1|1789159586|80x24|0,0
+beta|1|tmp|1|%3|3345078|bash|/tmp|user@RIG2:/tmp|1|1789159586|80x24|0,0
 alpha|1|edit|8205,80x24,0,0{40x24,0,0,0,39x24,41,0,1}|2      ← window_layout
 ```
 

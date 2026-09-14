@@ -269,40 +269,14 @@ def test_tmux_install_plugin_is_live_tpm(mixed_fleet, probes):
         a.commands(mixed_fleet.host("air"), probes["vps"])
 
 
-# -- cmux (docs-only) --------------------------------------------------------
-
-def test_cmux_backend_fails_closed_and_manual_steps(mixed_fleet, probes):
-    be = M.CmuxBackend()
-    assert be.caps.docs_only and be.process_info_argv(M.MuxPane("s1", "w1", "p1")) is None and be.excerpt_argv("s1", 10) is None
-    assert be.session_stop("app") is None and be.reload_config() is None
-    snap = be.parse_snapshot(['[{"uuid":"W1","title":"api"}]', '[{"uuid":"P1","workspace":"W1"}]', '[{"uuid":"S1","panel":"P1","workspace":"W1","cwd":"/w"}]'])
-    assert snap.panes[0].pane_id == "S1" and snap.tabs[0].label == "panel1"
-    sf = collect.SessionFacts("app", snapshot=snap, running=True, bindings={"S1": {"command": "claude --resume abc"}})
-    r = collect.build_roster("mixed", [collect.HostFacts(host="air", mux="cmux", sessions=[sf])], slots=SlotStore())
-    o = r.occupants[0]
-    assert (o.role, o.kind, o.resume_argv, o.agent_status) == ("agent", "claude", ["claude", "--resume", "abc"], "unknown")
-    # secure: unknown status → --force; dismiss → refused (no server); relieve restart → MANUAL steps
-    p = plan_secure(r, mixed_fleet, opts(targets=[o.human_id]))
-    assert p.refused and p.refusals[0].override == "--force"
-    p = plan_secure(r, mixed_fleet, opts(mode="dismiss", targets=[o.human_id], force=True))
-    assert any("no server" in x.reason for x in p.refusals)
-    pr = {"air": probes["vps"].__class__(**{**probes["vps"].__dict__, "host": "air", "flavor": "brew", "handoff_supported": False})}
-    w = plan_relieve(r, mixed_fleet, RelieveOptions(action="restart-harness", hosts=["air"], cockpit_host="rig2", probes=pr, force=True))
-    kinds = [s.kind.value for s in w.steps]
-    # three hand-offs to the operator: confirm the agent exited, quit cmux, relaunch cmux
-    assert kinds.count("manual") == 3 and any(s.raw == ("restore-session",) for s in w.steps)
-    assert all(s.unverified for s in w.steps if s.mux == "cmux" and s.via == "mux" and s.mutating)
-    with pytest.raises(RefusedPlan):
-        plan_relieve(r, mixed_fleet, RelieveOptions(action="restart-harness", hosts=["air"], mode="live", cockpit_host="rig2", probes=pr))
-    rc = plan_relieve(r, mixed_fleet, RelieveOptions(action="reload-config", hosts=["air"], cockpit_host="rig2", probes=pr))
-    assert rc.refused and "no config reload" in rc.refusals[0].reason
+# -- cmux: see tests/test_cmux.py (live-captured 0.64.22 fixtures) ------------
 
 
 def test_capability_matrix_and_hosts_toml():
     caps = M.CAPS
     assert caps["herdr"].needs_viewport and not caps["tmux"].needs_viewport
     assert caps["tmux"].layout_reapply and caps["tmux"].live_reload and caps["tmux"].live_handoff == "never"
-    assert caps["cmux"].docs_only and not caps["cmux"].has_server
+    assert not caps["cmux"].docs_only and caps["cmux"].has_server and caps["cmux"].agent_status == "native"
     assert set(actions.per_mux_matrix()) == set(actions.REGISTRY) - {"upgrade-herdr"} | {"upgrade-mux"} - {"upgrade-herdr"}
     with pytest.raises(ValueError):
         hosts.parse('[[host]]\nname = "x"\ntarget = "x"\nmux = "screen"\n')

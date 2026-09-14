@@ -89,7 +89,7 @@ def mux_step(plan: Plan, fleet: Fleet, sid: str, occ_or_host, session: str, desc
         shell = tuple(be.resolve_poll(session, raw))   # type: ignore[attr-defined]
         return plan.add(Step(id=sid, kind=StepKind.WAIT, host=host_name, session=session, mux=host.mux,
                              description=description, argv=tuple(hs.shell_argv(shell)), raw=shell,
-                             mutating="nudge" in raw,                  # a nudging wait presses a key
+                             mutating="nudge" in raw or "fallback" in raw,   # a nudging wait presses a key; a fallback types a command
                              slot_id=slot_id, human_id=human_id, via="shell", unverified=unverified,
                              placeholders=placeholders, agent_kind=agent_kind))
     argv = hs.mux_argv(*raw)
@@ -193,7 +193,7 @@ def park_steps(plan: Plan, fleet: Fleet, occupants: list[Occupant], *, force: bo
         elif o.role in ("watcher", "poller", "server"):
             n += 1
             mux_step(plan, fleet, f"{prefix}{n}a", o, o.session, f"interrupt {o.role} ({o.cmdline[:40]})",
-                     *be.interrupt(pid), unverified=(be.name == "cmux"))   # herdr/tmux C-c verified
+                     *be.interrupt(pid))   # herdr/tmux C-c and cmux ctrl-c verified
             parked.append(o)
     return parked
 

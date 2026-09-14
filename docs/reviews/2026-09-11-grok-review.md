@@ -2,7 +2,7 @@
 
 Reviewer: Grok (delegate, not co-author). No source was modified.
 
-- Repo: `/home/holloway/Work/watchbill`, branch `main`, HEAD `ddde489e6b712deb17d84f692fbab8f2d053cb72`
+- Repo: `~/Work/watchbill`, branch `main`, HEAD `ddde489e6b712deb17d84f692fbab8f2d053cb72`
 - `watchbill-spec.md`: **absent**. Behaviour judged against `docs/kickoff-prompt.md` (Builder brief) as the contract.
 - Tests: `uv run pytest -q` → **94 passed, 4 xfailed** (strict xfails in `tests/test_red_mvp.py`).
 - Live probe (this box): `herdr 0.8.2` from `/usr/bin/herdr`, protocol 20. Used only to mark UNVERIFIED items true or false; not to run Watchbill against the server.

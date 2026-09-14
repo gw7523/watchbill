@@ -64,15 +64,10 @@ def start_steps(plan: Plan, fleet: Fleet, host: Host, session: str, *, tag: str,
                 first_env: dict | None = None, server_env: dict | None = None) -> None:
     """Start a session. herdr: the host's `start` capability (systemd unit on
     Omarchy; the built-in default is UNVERIFIED-0.8.2). tmux: `new-session -d`
-    (verified). cmux: a MANUAL relaunch followed by `restore-session`."""
+    (verified). cmux: the host's `start` (default `open -a cmux`, verified);
+    the app then restores its workspaces and resumes its agents itself."""
     be = backend_of(fleet, host.name)
     native = be.session_start(session, first_label, cwd, first_window, first_env)
-    if be.name == "cmux":
-        plan.add(Step(id=f"{tag}start", kind=StepKind.MANUAL, host=host.name, session=session, mux="cmux", mutating=True,
-                      description="MANUAL: launch cmux on the Mac (no CLI relaunch exists), then continue"))
-        mux_step(plan, fleet, f"{tag}restore", host.name, session, "cmux restore-session (re-apply the saved layout)",
-                 *be.restore_session(), unverified=True)
-        return
     explicit_start = host.start != hosts_mod.DEFAULT_START
     if native and be.name == "tmux":
         # `new-session -d -s <label>` starts the server AND creates the first
@@ -228,10 +223,6 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                                  f"create workspace {ws['label']} (root pane → slot {first['slot_id'][-6:]}; reused if restored)",
                                  *ws_argv, creates=first["slot_id"], unverified=be.caps.docs_only,
                                  reuse={"workspace": ws["label"], "tab": t["label"], "index": 0})
-                        if be.name == "cmux":
-                            plan.add(Step(id=f"{p}ws.{ws['label']}.note", kind=StepKind.NOTE, host=host_name, session=session,
-                                          mux="cmux", description=f"cmux `new-workspace` takes no label or cwd, so "
-                                                                  f"{ws['label']!r} comes back untitled; rename it in the app (⌘⇧R)"))
                         created.add(first["slot_id"])
                     else:
                         tab_argv = be.tab_create(f"{{ws:{ws_key}}}", t["label"], first.get("cwd") or "~",
@@ -295,7 +286,13 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                         plan.notes.append(f"{o.human_id}: {o.kind} flags are not carried (no verified flag table); "
                                           f"it resumes without: {' '.join(o.argv[1:])[:80]}")
                 seat = agentconfig.restore_env(cfg)
-                if seat and be.name in ("herdr", "tmux"):
+                # cmux relaunches a hook-tracked agent itself (its resume binding,
+                # verified 0.64.22): in a window that stopped the app, wait for
+                # that resume instead of typing a second one into it; the wait
+                # types the recorded command only when nothing appears.
+                native_wait = (be.name == "cmux" and live is None and o.resume_argv is not None
+                               and bool((o.agent_session or {}).get("auto_resume")))
+                if seat and not native_wait:
                     # A pane the mux restored on its own (herdr, from session.json)
                     # has the new server's environment, not this agent's seat
                     # environment, and --env/-e only applies to panes Watchbill
@@ -307,7 +304,13 @@ def set_steps(plan: Plan, roster: Roster, fleet: Fleet, occupants: list[Occupant
                     mux_step(plan, fleet, f"{p}{name}.env", o, session, f"restore seat environment ({', '.join(sorted(seat))})",
                              *be.send_text(pane_tok, exports), placeholders=ph)
                     mux_step(plan, fleet, f"{p}{name}.env.1", o, session, "press enter", *be.send_enter(pane_tok), placeholders=ph)
-                if o.resume_argv:
+                if native_wait:
+                    mux_step(plan, fleet, f"{p}{name}.start", o, session,
+                             f"wait for cmux to resume {o.kind} conversation {o.agent_session['value'][:8]}… itself "
+                             f"(types `{' '.join(o.resume_argv)}` only if it does not)",
+                             *be.agent_native_resume_wait(pane_tok, o.kind or "", o.resume_argv, 90000),   # type: ignore[attr-defined]
+                             kind=StepKind.WAIT, placeholders=ph)
+                elif o.resume_argv:
                     how = (f"resume {o.kind} conversation {o.agent_session['value'][:8]}…" if o.agent_session
                            else f"resume {o.kind} via {' '.join(o.resume_argv)} (cwd-scoped)")
                     for j, argv in enumerate(be.agent_start(name, o.kind or "", pane_tok, o.resume_argv, cfg.get("flags"))):

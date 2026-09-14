@@ -178,7 +178,14 @@ def plan_relieve(roster: Roster, fleet: Fleet, opts: RelieveOptions) -> Plan:
         if stop:
             for i, s in enumerate(sessions, 1):
                 stop_argv = be.session_stop(s)
-                if stop_argv is None:
+                stop_shell = be.session_stop_shell(s) if hasattr(be, "session_stop_shell") else None
+                if stop_argv is None and stop_shell:
+                    # cmux: the session is the GUI app; quit it (verified with
+                    # app.confirmQuit = "never"; the default dialog blocks the quit)
+                    plan.add(Step(id=f"{tag}stop{i}", kind=StepKind.SHELL, host=hn, session=s, mux=be.name, mutating=True,
+                                  argv=tuple(stop_shell), raw=tuple(stop_shell), via="shell", planned_stop=True,
+                                  description=f"quit {be.name} on {hn} (blast radius; it restores workspaces and agents on relaunch)"))
+                elif stop_argv is None:
                     plan.add(Step(id=f"{tag}stop{i}", kind=StepKind.MANUAL, host=hn, session=s, mux=be.name, mutating=True,
                                   description=f"MANUAL: quit {be.name} on {hn} (it saves its session on quit); then continue"))
                 else:

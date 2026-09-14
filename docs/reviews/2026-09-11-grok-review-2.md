@@ -2,7 +2,7 @@
 
 Reviewer: Grok (delegate, not a co-author). No existing source was modified. This file is the only write.
 
-- Repo: `/home/holloway/Work/watchbill`, branch `main`, HEAD `70ad6478114fb734163799e9289098b24a8e1026`
+- Repo: `~/Work/watchbill`, branch `main`, HEAD `70ad6478114fb734163799e9289098b24a8e1026`
 - Contract: `docs/kickoff-prompt.md` (Builder brief). Dissent: `docs/mux-backends.md`. Facts: `docs/tmux-3.7-facts.md`, `docs/cmux-facts.md` (cmux CLI also re-fetched from https://cmux.com/docs/api on 2026-09-11).
 - Round 1: `docs/reviews/2026-09-11-grok-review.md` (approve-with-nits). Architecture claims every should-fix was patched (`docs/architecture.md:344-347`); herdr-path follow-ups still hold. This round judges the mux axis on top of that.
 - Tests: `uv run pytest -q` → **119 passed, 4 xfailed** (strict xfails in `tests/test_red_mvp.py`). Exit 0. (`pyproject.toml` already sets `addopts = "-q"`, so a second `-q` hides the summary line; count is 119 progress dots + 4 `x`.)

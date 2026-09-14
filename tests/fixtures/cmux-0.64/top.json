@@ -1,0 +1,1090 @@
+{
+  "active" : {
+    "is_browser_surface" : false,
+    "pane_id" : "48F04857-0811-485D-AA7D-A9401E335A83",
+    "surface_id" : "49E16AA5-B9DD-42BE-A384-0D2C72278AA8",
+    "surface_type" : "terminal",
+    "tab_id" : "49E16AA5-B9DD-42BE-A384-0D2C72278AA8",
+    "window_id" : "DD44747C-B80B-4CB9-AB3F-2D96D846F708",
+    "workspace_id" : "BF65DC79-7A80-4E45-BF8F-84C3D9959072"
+  },
+  "caller" : null,
+  "coding_agents" : [
+    {
+      "asset_name" : "AgentIcons/Claude",
+      "display_name" : "Claude Code",
+      "id" : "claude",
+      "resources" : {
+        "cpu_percent" : 0.89071582606618915,
+        "memory_bytes" : 169198648,
+        "memory_source_fallback_count" : 0,
+        "memory_source_fallback_pids" : [
+
+        ],
+        "missing_pids" : [
+
+        ],
+        "pids" : [
+          78320
+        ],
+        "process_count" : 1,
+        "resident_bytes" : 321617920,
+        "resident_memory_source_fallback_count" : 0,
+        "resident_memory_source_fallback_pids" : [
+
+        ],
+        "unavailable_memory_count" : 0,
+        "unavailable_memory_pids" : [
+
+        ],
+        "unavailable_resident_memory_count" : 0,
+        "unavailable_resident_memory_pids" : [
+
+        ],
+        "virtual_bytes" : 0
+      }
+    }
+  ],
+  "memory_diagnostic" : {
+    "app" : {
+      "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+      "name" : "cmux",
+      "path" : "/Applications/cmux.app/Contents/MacOS/cmux",
+      "physical_footprint_bytes" : 126911688,
+      "pid" : 78112,
+      "resident_bytes" : 258981888,
+      "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+      "resources" : {
+        "cpu_percent" : 4.3721665824295073,
+        "memory_bytes" : 126911688,
+        "memory_source_fallback_count" : 0,
+        "memory_source_fallback_pids" : [
+
+        ],
+        "missing_pids" : [
+
+        ],
+        "pids" : [
+          78112
+        ],
+        "process_count" : 1,
+        "resident_bytes" : 258981888,
+        "resident_memory_source_fallback_count" : 0,
+        "resident_memory_source_fallback_pids" : [
+
+        ],
+        "unavailable_memory_count" : 0,
+        "unavailable_memory_pids" : [
+
+        ],
+        "unavailable_resident_memory_count" : 0,
+        "unavailable_resident_memory_pids" : [
+
+        ],
+        "virtual_bytes" : 454212583424
+      }
+    },
+    "children" : {
+      "groups" : [
+        {
+          "attributions" : [
+            {
+              "pane_id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+              "pids" : [
+                78320
+              ],
+              "process_count" : 1,
+              "reason" : "surface-process-tree",
+              "resident_bytes" : 321617920,
+              "rss_bytes" : 321617920,
+              "surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+              "surface_type" : "terminal",
+              "workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5"
+            }
+          ],
+          "group_attribution" : {
+            "attributed_process_count" : 1,
+            "kind" : "common",
+            "owner" : {
+              "pane_id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+              "reason" : "common-command-group-owner",
+              "surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+              "surface_type" : "terminal",
+              "workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5"
+            },
+            "owner_count" : 1,
+            "unattributed_process_count" : 0,
+            "workspace_count" : 1
+          },
+          "id" : "2.1.270",
+          "name" : "2.1.270",
+          "pids" : [
+            78320
+          ],
+          "process_count" : 1,
+          "resident_bytes" : 321617920,
+          "rss_bytes" : 321617920,
+          "top_attribution" : {
+            "pane_id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+            "pids" : [
+              78320
+            ],
+            "process_count" : 1,
+            "reason" : "surface-process-tree",
+            "resident_bytes" : 321617920,
+            "rss_bytes" : 321617920,
+            "surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+            "surface_type" : "terminal",
+            "workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5"
+          }
+        },
+        {
+          "attributions" : [
+            {
+              "pane_id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+              "pids" : [
+                78127
+              ],
+              "process_count" : 1,
+              "reason" : "surface-process-tree",
+              "resident_bytes" : 14991360,
+              "rss_bytes" : 14991360,
+              "surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+              "surface_type" : "terminal",
+              "workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5"
+            },
+            {
+              "pane_id" : "48F04857-0811-485D-AA7D-A9401E335A83",
+              "pids" : [
+                78118
+              ],
+              "process_count" : 1,
+              "reason" : "surface-process-tree",
+              "resident_bytes" : 14974976,
+              "rss_bytes" : 14974976,
+              "surface_id" : "49E16AA5-B9DD-42BE-A384-0D2C72278AA8",
+              "surface_type" : "terminal",
+              "workspace_id" : "BF65DC79-7A80-4E45-BF8F-84C3D9959072"
+            }
+          ],
+          "group_attribution" : {
+            "attributed_process_count" : 2,
+            "kind" : "multiple",
+            "owner" : null,
+            "owner_count" : 2,
+            "unattributed_process_count" : 0,
+            "workspace_count" : 2
+          },
+          "id" : "bash",
+          "name" : "bash",
+          "pids" : [
+            78118,
+            78127
+          ],
+          "process_count" : 2,
+          "resident_bytes" : 29966336,
+          "rss_bytes" : 29966336,
+          "top_attribution" : {
+            "pane_id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+            "pids" : [
+              78127
+            ],
+            "process_count" : 1,
+            "reason" : "surface-process-tree",
+            "resident_bytes" : 14991360,
+            "rss_bytes" : 14991360,
+            "surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+            "surface_type" : "terminal",
+            "workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5"
+          }
+        }
+      ],
+      "pids" : [
+        78118,
+        78127,
+        78320
+      ],
+      "process_count" : 3,
+      "recursive_rss_bytes" : 351584256,
+      "root_pid" : 78112
+    },
+    "sampled_at" : "2026-09-14T13:59:59Z",
+    "summary" : "121 MB app footprint + 335.3 MB child RSS; top child group: 2.1.270 306.7 MB from workspace workspace:1"
+  },
+  "program_totals" : [
+    {
+      "id" : "bash",
+      "name" : "bash",
+      "resources" : {
+        "cpu_percent" : 0,
+        "memory_bytes" : 18465632,
+        "memory_source_fallback_count" : 0,
+        "memory_source_fallback_pids" : [
+
+        ],
+        "missing_pids" : [
+
+        ],
+        "pids" : [
+          78118,
+          78127
+        ],
+        "process_count" : 2,
+        "resident_bytes" : 29966336,
+        "resident_memory_source_fallback_count" : 0,
+        "resident_memory_source_fallback_pids" : [
+
+        ],
+        "unavailable_memory_count" : 0,
+        "unavailable_memory_pids" : [
+
+        ],
+        "unavailable_resident_memory_count" : 0,
+        "unavailable_resident_memory_pids" : [
+
+        ],
+        "virtual_bytes" : 0
+      }
+    }
+  ],
+  "sample" : {
+    "cmux_scope" : true,
+    "cpu_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_total_user+pti_total_system",
+    "memory_fallback_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+    "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+    "process_details" : true,
+    "resident_memory_fallback_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_resident_size",
+    "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+    "resident_memory_sources" : [
+      "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size"
+    ],
+    "sampled_at" : "2026-09-14T13:59:59Z",
+    "source" : "proc_listallpids+proc_pidinfo"
+  },
+  "totals" : {
+    "cpu_percent" : 5.2628824084956962,
+    "memory_bytes" : 314575968,
+    "memory_source_fallback_count" : 0,
+    "memory_source_fallback_pids" : [
+
+    ],
+    "missing_pids" : [
+
+    ],
+    "pids" : [
+      78112,
+      78118,
+      78127,
+      78320
+    ],
+    "process_count" : 4,
+    "resident_bytes" : 610566144,
+    "resident_memory_source_fallback_count" : 0,
+    "resident_memory_source_fallback_pids" : [
+
+    ],
+    "unavailable_memory_count" : 0,
+    "unavailable_memory_pids" : [
+
+    ],
+    "unavailable_resident_memory_count" : 0,
+    "unavailable_resident_memory_pids" : [
+
+    ],
+    "virtual_bytes" : 1818369572864
+  },
+  "windows" : [
+    {
+      "app_process_pids" : [
+        78112
+      ],
+      "foreground_pgids" : [
+        78118,
+        78320
+      ],
+      "id" : "DD44747C-B80B-4CB9-AB3F-2D96D846F708",
+      "index" : 0,
+      "key" : false,
+      "kind" : "window",
+      "processes" : [
+        {
+          "attribution_reason" : "explicit-root-pid",
+          "children" : [
+
+          ],
+          "cmux_surface_id" : null,
+          "cmux_workspace_id" : null,
+          "kind" : "process",
+          "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+          "name" : "cmux",
+          "path" : "/Applications/cmux.app/Contents/MacOS/cmux",
+          "pgid" : 78112,
+          "pid" : 78112,
+          "ppid" : 1,
+          "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+          "resources" : {
+            "cpu_percent" : 4.3721665824295073,
+            "memory_bytes" : 126911688,
+            "memory_source_fallback_count" : 0,
+            "memory_source_fallback_pids" : [
+
+            ],
+            "missing_pids" : [
+
+            ],
+            "pids" : [
+              78112
+            ],
+            "process_count" : 1,
+            "resident_bytes" : 258981888,
+            "resident_memory_source_fallback_count" : 0,
+            "resident_memory_source_fallback_pids" : [
+
+            ],
+            "unavailable_memory_count" : 0,
+            "unavailable_memory_pids" : [
+
+            ],
+            "unavailable_resident_memory_count" : 0,
+            "unavailable_resident_memory_pids" : [
+
+            ],
+            "virtual_bytes" : 454212583424
+          },
+          "thread_count" : 23,
+          "tpgid" : null,
+          "tty_device" : 4294967295
+        }
+      ],
+      "resources" : {
+        "cpu_percent" : 5.2628824084956962,
+        "memory_bytes" : 314575968,
+        "memory_source_fallback_count" : 0,
+        "memory_source_fallback_pids" : [
+
+        ],
+        "missing_pids" : [
+
+        ],
+        "pids" : [
+          78112,
+          78118,
+          78127,
+          78320
+        ],
+        "process_count" : 4,
+        "resident_bytes" : 610566144,
+        "resident_memory_source_fallback_count" : 0,
+        "resident_memory_source_fallback_pids" : [
+
+        ],
+        "unavailable_memory_count" : 0,
+        "unavailable_memory_pids" : [
+
+        ],
+        "unavailable_resident_memory_count" : 0,
+        "unavailable_resident_memory_pids" : [
+
+        ],
+        "virtual_bytes" : 1818369572864
+      },
+      "selected_workspace_id" : "BF65DC79-7A80-4E45-BF8F-84C3D9959072",
+      "top_level_pids" : [
+        78112,
+        78118,
+        78127,
+        78320
+      ],
+      "visible" : true,
+      "workspace_count" : 2,
+      "workspaces" : [
+        {
+          "description" : null,
+          "foreground_pgids" : [
+            78320
+          ],
+          "id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5",
+          "index" : 0,
+          "kind" : "workspace",
+          "panes" : [
+            {
+              "focused" : true,
+              "foreground_pgids" : [
+                78320
+              ],
+              "id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+              "index" : 0,
+              "kind" : "pane",
+              "resources" : {
+                "cpu_percent" : 0.89071582606618915,
+                "memory_bytes" : 178439656,
+                "memory_source_fallback_count" : 0,
+                "memory_source_fallback_pids" : [
+
+                ],
+                "missing_pids" : [
+
+                ],
+                "pids" : [
+                  78127,
+                  78320
+                ],
+                "process_count" : 2,
+                "resident_bytes" : 336609280,
+                "resident_memory_source_fallback_count" : 0,
+                "resident_memory_source_fallback_pids" : [
+
+                ],
+                "unavailable_memory_count" : 0,
+                "unavailable_memory_pids" : [
+
+                ],
+                "unavailable_resident_memory_count" : 0,
+                "unavailable_resident_memory_pids" : [
+
+                ],
+                "virtual_bytes" : 911336505344
+              },
+              "selected_surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+              "surface_count" : 1,
+              "surface_ids" : [
+                "34842749-2606-4025-9F6F-4C3DEFD06071"
+              ],
+              "surfaces" : [
+                {
+                  "browser_web_content_pid" : null,
+                  "cmux_process_pids" : [
+                    78127,
+                    78320
+                  ],
+                  "focused" : true,
+                  "foreground_pgids" : [
+                    78320
+                  ],
+                  "id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+                  "index" : 0,
+                  "index_in_pane" : 0,
+                  "kind" : "surface",
+                  "pane_id" : "03B42485-E3BF-421E-A36E-72D89F624CF5",
+                  "processes" : [
+                    {
+                      "attribution_reason" : "cmux-environment",
+                      "children" : [
+
+                      ],
+                      "cmux_surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+                      "cmux_workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5",
+                      "kind" : "process",
+                      "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+                      "name" : "2.1.270",
+                      "path" : "/Users/user/.local/share/claude/versions/2.1.270",
+                      "pgid" : 78320,
+                      "pid" : 78320,
+                      "ppid" : 78127,
+                      "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+                      "resources" : {
+                        "cpu_percent" : 0.89071582606618915,
+                        "memory_bytes" : 169198648,
+                        "memory_source_fallback_count" : 0,
+                        "memory_source_fallback_pids" : [
+
+                        ],
+                        "missing_pids" : [
+
+                        ],
+                        "pids" : [
+                          78320
+                        ],
+                        "process_count" : 1,
+                        "resident_bytes" : 321617920,
+                        "resident_memory_source_fallback_count" : 0,
+                        "resident_memory_source_fallback_pids" : [
+
+                        ],
+                        "unavailable_memory_count" : 0,
+                        "unavailable_memory_pids" : [
+
+                        ],
+                        "unavailable_resident_memory_count" : 0,
+                        "unavailable_resident_memory_pids" : [
+
+                        ],
+                        "virtual_bytes" : 458516037632
+                      },
+                      "thread_count" : 16,
+                      "tpgid" : 78320,
+                      "tty_device" : 268435464
+                    },
+                    {
+                      "attribution_reason" : "cmux-environment",
+                      "children" : [
+
+                      ],
+                      "cmux_surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+                      "cmux_workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5",
+                      "kind" : "process",
+                      "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+                      "name" : "bash",
+                      "path" : "/opt/homebrew/Cellar/bash/5.3.15/bin/bash",
+                      "pgid" : 78127,
+                      "pid" : 78127,
+                      "ppid" : 78120,
+                      "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+                      "resources" : {
+                        "cpu_percent" : 0,
+                        "memory_bytes" : 9241008,
+                        "memory_source_fallback_count" : 0,
+                        "memory_source_fallback_pids" : [
+
+                        ],
+                        "missing_pids" : [
+
+                        ],
+                        "pids" : [
+                          78127
+                        ],
+                        "process_count" : 1,
+                        "resident_bytes" : 14991360,
+                        "resident_memory_source_fallback_count" : 0,
+                        "resident_memory_source_fallback_pids" : [
+
+                        ],
+                        "unavailable_memory_count" : 0,
+                        "unavailable_memory_pids" : [
+
+                        ],
+                        "unavailable_resident_memory_count" : 0,
+                        "unavailable_resident_memory_pids" : [
+
+                        ],
+                        "virtual_bytes" : 452820467712
+                      },
+                      "thread_count" : 1,
+                      "tpgid" : 78320,
+                      "tty_device" : 268435464
+                    }
+                  ],
+                  "resources" : {
+                    "cpu_percent" : 0.89071582606618915,
+                    "memory_bytes" : 178439656,
+                    "memory_source_fallback_count" : 0,
+                    "memory_source_fallback_pids" : [
+
+                    ],
+                    "missing_pids" : [
+
+                    ],
+                    "pids" : [
+                      78127,
+                      78320
+                    ],
+                    "process_count" : 2,
+                    "resident_bytes" : 336609280,
+                    "resident_memory_source_fallback_count" : 0,
+                    "resident_memory_source_fallback_pids" : [
+
+                    ],
+                    "unavailable_memory_count" : 0,
+                    "unavailable_memory_pids" : [
+
+                    ],
+                    "unavailable_resident_memory_count" : 0,
+                    "unavailable_resident_memory_pids" : [
+
+                    ],
+                    "virtual_bytes" : 911336505344
+                  },
+                  "root_pids" : [
+                    78127,
+                    78320
+                  ],
+                  "selected" : true,
+                  "selected_in_pane" : true,
+                  "title" : "✳ Codeword tangerine",
+                  "top_level_pids" : [
+                    78127
+                  ],
+                  "tty" : null,
+                  "tty_process_pids" : [
+
+                  ],
+                  "type" : "terminal",
+                  "url" : null,
+                  "webviews" : [
+
+                  ]
+                }
+              ],
+              "top_level_pids" : [
+                78127
+              ]
+            },
+            {
+              "focused" : false,
+              "foreground_pgids" : [
+
+              ],
+              "id" : "7F396F7D-79F6-4D24-9A85-FE1E002A2784",
+              "index" : 1,
+              "kind" : "pane",
+              "resources" : {
+                "cpu_percent" : 0,
+                "memory_bytes" : 0,
+                "memory_source_fallback_count" : 0,
+                "memory_source_fallback_pids" : [
+
+                ],
+                "missing_pids" : [
+
+                ],
+                "pids" : [
+
+                ],
+                "process_count" : 0,
+                "resident_bytes" : 0,
+                "resident_memory_source_fallback_count" : 0,
+                "resident_memory_source_fallback_pids" : [
+
+                ],
+                "unavailable_memory_count" : 0,
+                "unavailable_memory_pids" : [
+
+                ],
+                "unavailable_resident_memory_count" : 0,
+                "unavailable_resident_memory_pids" : [
+
+                ],
+                "virtual_bytes" : 0
+              },
+              "selected_surface_id" : "B3724DA9-C07F-476B-B7BE-716783459907",
+              "surface_count" : 1,
+              "surface_ids" : [
+                "B3724DA9-C07F-476B-B7BE-716783459907"
+              ],
+              "surfaces" : [
+                {
+                  "browser_web_content_pid" : null,
+                  "cmux_process_pids" : [
+
+                  ],
+                  "focused" : false,
+                  "foreground_pgids" : [
+
+                  ],
+                  "id" : "B3724DA9-C07F-476B-B7BE-716783459907",
+                  "index" : 1,
+                  "index_in_pane" : 0,
+                  "kind" : "surface",
+                  "pane_id" : "7F396F7D-79F6-4D24-9A85-FE1E002A2784",
+                  "processes" : [
+
+                  ],
+                  "resources" : {
+                    "cpu_percent" : 0,
+                    "memory_bytes" : 0,
+                    "memory_source_fallback_count" : 0,
+                    "memory_source_fallback_pids" : [
+
+                    ],
+                    "missing_pids" : [
+
+                    ],
+                    "pids" : [
+
+                    ],
+                    "process_count" : 0,
+                    "resident_bytes" : 0,
+                    "resident_memory_source_fallback_count" : 0,
+                    "resident_memory_source_fallback_pids" : [
+
+                    ],
+                    "unavailable_memory_count" : 0,
+                    "unavailable_memory_pids" : [
+
+                    ],
+                    "unavailable_resident_memory_count" : 0,
+                    "unavailable_resident_memory_pids" : [
+
+                    ],
+                    "virtual_bytes" : 0
+                  },
+                  "root_pids" : [
+
+                  ],
+                  "selected" : true,
+                  "selected_in_pane" : true,
+                  "title" : "Terminal",
+                  "top_level_pids" : [
+
+                  ],
+                  "tty" : null,
+                  "tty_process_pids" : [
+
+                  ],
+                  "type" : "terminal",
+                  "url" : null,
+                  "webviews" : [
+
+                  ]
+                }
+              ],
+              "top_level_pids" : [
+
+              ]
+            }
+          ],
+          "pinned" : false,
+          "resources" : {
+            "cpu_percent" : 0.89071582606618915,
+            "memory_bytes" : 178439656,
+            "memory_source_fallback_count" : 0,
+            "memory_source_fallback_pids" : [
+
+            ],
+            "missing_pids" : [
+
+            ],
+            "pids" : [
+              78127,
+              78320
+            ],
+            "process_count" : 2,
+            "resident_bytes" : 336609280,
+            "resident_memory_source_fallback_count" : 0,
+            "resident_memory_source_fallback_pids" : [
+
+            ],
+            "unavailable_memory_count" : 0,
+            "unavailable_memory_pids" : [
+
+            ],
+            "unavailable_resident_memory_count" : 0,
+            "unavailable_resident_memory_pids" : [
+
+            ],
+            "virtual_bytes" : 911336505344
+          },
+          "selected" : false,
+          "tags" : [
+            {
+              "color" : null,
+              "foreground_pgids" : [
+                78320
+              ],
+              "format" : "plain",
+              "icon" : null,
+              "id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5:tag:claude_code",
+              "index" : 0,
+              "key" : "claude_code",
+              "kind" : "tag",
+              "pid" : 78320,
+              "priority" : 0,
+              "processes" : [
+                {
+                  "attribution_reason" : "cmux-environment",
+                  "children" : [
+
+                  ],
+                  "cmux_surface_id" : "34842749-2606-4025-9F6F-4C3DEFD06071",
+                  "cmux_workspace_id" : "CA999742-C6B2-4704-9446-4C6F21A1C8D5",
+                  "kind" : "process",
+                  "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+                  "name" : "2.1.270",
+                  "path" : "/Users/user/.local/share/claude/versions/2.1.270",
+                  "pgid" : 78320,
+                  "pid" : 78320,
+                  "ppid" : 78127,
+                  "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+                  "resources" : {
+                    "cpu_percent" : 0.89071582606618915,
+                    "memory_bytes" : 169198648,
+                    "memory_source_fallback_count" : 0,
+                    "memory_source_fallback_pids" : [
+
+                    ],
+                    "missing_pids" : [
+
+                    ],
+                    "pids" : [
+                      78320
+                    ],
+                    "process_count" : 1,
+                    "resident_bytes" : 321617920,
+                    "resident_memory_source_fallback_count" : 0,
+                    "resident_memory_source_fallback_pids" : [
+
+                    ],
+                    "unavailable_memory_count" : 0,
+                    "unavailable_memory_pids" : [
+
+                    ],
+                    "unavailable_resident_memory_count" : 0,
+                    "unavailable_resident_memory_pids" : [
+
+                    ],
+                    "virtual_bytes" : 458516037632
+                  },
+                  "thread_count" : 16,
+                  "tpgid" : 78320,
+                  "tty_device" : 268435464
+                }
+              ],
+              "resources" : {
+                "cpu_percent" : 0.89071582606618915,
+                "memory_bytes" : 169198648,
+                "memory_source_fallback_count" : 0,
+                "memory_source_fallback_pids" : [
+
+                ],
+                "missing_pids" : [
+
+                ],
+                "pids" : [
+                  78320
+                ],
+                "process_count" : 1,
+                "resident_bytes" : 321617920,
+                "resident_memory_source_fallback_count" : 0,
+                "resident_memory_source_fallback_pids" : [
+
+                ],
+                "unavailable_memory_count" : 0,
+                "unavailable_memory_pids" : [
+
+                ],
+                "unavailable_resident_memory_count" : 0,
+                "unavailable_resident_memory_pids" : [
+
+                ],
+                "virtual_bytes" : 458516037632
+              },
+              "root_pids" : [
+                78320
+              ],
+              "top_level_pids" : [
+                78320
+              ],
+              "url" : null,
+              "value" : "",
+              "visible" : false
+            }
+          ],
+          "title" : "wbprobe",
+          "top_level_pids" : [
+            78127,
+            78320
+          ]
+        },
+        {
+          "description" : null,
+          "foreground_pgids" : [
+            78118
+          ],
+          "id" : "BF65DC79-7A80-4E45-BF8F-84C3D9959072",
+          "index" : 1,
+          "kind" : "workspace",
+          "panes" : [
+            {
+              "focused" : true,
+              "foreground_pgids" : [
+                78118
+              ],
+              "id" : "48F04857-0811-485D-AA7D-A9401E335A83",
+              "index" : 0,
+              "kind" : "pane",
+              "resources" : {
+                "cpu_percent" : 0,
+                "memory_bytes" : 9224624,
+                "memory_source_fallback_count" : 0,
+                "memory_source_fallback_pids" : [
+
+                ],
+                "missing_pids" : [
+
+                ],
+                "pids" : [
+                  78118
+                ],
+                "process_count" : 1,
+                "resident_bytes" : 14974976,
+                "resident_memory_source_fallback_count" : 0,
+                "resident_memory_source_fallback_pids" : [
+
+                ],
+                "unavailable_memory_count" : 0,
+                "unavailable_memory_pids" : [
+
+                ],
+                "unavailable_resident_memory_count" : 0,
+                "unavailable_resident_memory_pids" : [
+
+                ],
+                "virtual_bytes" : 452820484096
+              },
+              "selected_surface_id" : "49E16AA5-B9DD-42BE-A384-0D2C72278AA8",
+              "surface_count" : 1,
+              "surface_ids" : [
+                "49E16AA5-B9DD-42BE-A384-0D2C72278AA8"
+              ],
+              "surfaces" : [
+                {
+                  "browser_web_content_pid" : null,
+                  "cmux_process_pids" : [
+                    78118
+                  ],
+                  "focused" : true,
+                  "foreground_pgids" : [
+                    78118
+                  ],
+                  "id" : "49E16AA5-B9DD-42BE-A384-0D2C72278AA8",
+                  "index" : 0,
+                  "index_in_pane" : 0,
+                  "kind" : "surface",
+                  "pane_id" : "48F04857-0811-485D-AA7D-A9401E335A83",
+                  "processes" : [
+                    {
+                      "attribution_reason" : "cmux-environment",
+                      "children" : [
+
+                      ],
+                      "cmux_surface_id" : "49E16AA5-B9DD-42BE-A384-0D2C72278AA8",
+                      "cmux_workspace_id" : "BF65DC79-7A80-4E45-BF8F-84C3D9959072",
+                      "kind" : "process",
+                      "memory_source" : "proc_pid_rusage.RUSAGE_INFO_V4.ri_phys_footprint",
+                      "name" : "bash",
+                      "path" : "/opt/homebrew/Cellar/bash/5.3.15/bin/bash",
+                      "pgid" : 78118,
+                      "pid" : 78118,
+                      "ppid" : 78117,
+                      "resident_memory_source" : "proc_pidinfo.PROC_PIDTASKINFO.pti_resident_size",
+                      "resources" : {
+                        "cpu_percent" : 0,
+                        "memory_bytes" : 9224624,
+                        "memory_source_fallback_count" : 0,
+                        "memory_source_fallback_pids" : [
+
+                        ],
+                        "missing_pids" : [
+
+                        ],
+                        "pids" : [
+                          78118
+                        ],
+                        "process_count" : 1,
+                        "resident_bytes" : 14974976,
+                        "resident_memory_source_fallback_count" : 0,
+                        "resident_memory_source_fallback_pids" : [
+
+                        ],
+                        "unavailable_memory_count" : 0,
+                        "unavailable_memory_pids" : [
+
+                        ],
+                        "unavailable_resident_memory_count" : 0,
+                        "unavailable_resident_memory_pids" : [
+
+                        ],
+                        "virtual_bytes" : 452820484096
+                      },
+                      "thread_count" : 1,
+                      "tpgid" : 78118,
+                      "tty_device" : 268435462
+                    }
+                  ],
+                  "resources" : {
+                    "cpu_percent" : 0,
+                    "memory_bytes" : 9224624,
+                    "memory_source_fallback_count" : 0,
+                    "memory_source_fallback_pids" : [
+
+                    ],
+                    "missing_pids" : [
+
+                    ],
+                    "pids" : [
+                      78118
+                    ],
+                    "process_count" : 1,
+                    "resident_bytes" : 14974976,
+                    "resident_memory_source_fallback_count" : 0,
+                    "resident_memory_source_fallback_pids" : [
+
+                    ],
+                    "unavailable_memory_count" : 0,
+                    "unavailable_memory_pids" : [
+
+                    ],
+                    "unavailable_resident_memory_count" : 0,
+                    "unavailable_resident_memory_pids" : [
+
+                    ],
+                    "virtual_bytes" : 452820484096
+                  },
+                  "root_pids" : [
+                    78118
+                  ],
+                  "selected" : true,
+                  "selected_in_pane" : true,
+                  "title" : "~",
+                  "top_level_pids" : [
+                    78118
+                  ],
+                  "tty" : "ttys006",
+                  "tty_process_pids" : [
+                    78118
+                  ],
+                  "type" : "terminal",
+                  "url" : null,
+                  "webviews" : [
+
+                  ]
+                }
+              ],
+              "top_level_pids" : [
+                78118
+              ]
+            }
+          ],
+          "pinned" : false,
+          "resources" : {
+            "cpu_percent" : 0,
+            "memory_bytes" : 9224624,
+            "memory_source_fallback_count" : 0,
+            "memory_source_fallback_pids" : [
+
+            ],
+            "missing_pids" : [
+
+            ],
+            "pids" : [
+              78118
+            ],
+            "process_count" : 1,
+            "resident_bytes" : 14974976,
+            "resident_memory_source_fallback_count" : 0,
+            "resident_memory_source_fallback_pids" : [
+
+            ],
+            "unavailable_memory_count" : 0,
+            "unavailable_memory_pids" : [
+
+            ],
+            "unavailable_resident_memory_count" : 0,
+            "unavailable_resident_memory_pids" : [
+
+            ],
+            "virtual_bytes" : 452820484096
+          },
+          "selected" : true,
+          "tags" : [
+
+          ],
+          "title" : "~",
+          "top_level_pids" : [
+            78118
+          ]
+        }
+      ]
+    }
+  ]
+}

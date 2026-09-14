@@ -59,7 +59,7 @@ src/watchbill/
   roster.py           Roster/Occupant/Shape; load/save/merge; occupant guard; current.json
   slots.py            ULID slot_id store keyed by human_id, then agent_session
   resume.py           native resume argv table with verify column               [added]
-  mux/                mux backends: base (protocol, Capabilities, MuxSnapshot), herdr, tmux, cmux   [pass 2]
+  mux/                mux backends: base (protocol, Capabilities, MuxSnapshot), herdr, tmux (3.7c), cmux (0.64, live)   [pass 2]
   detect.py           agent status heuristics (quiet time + approval-prompt patterns)              [pass 2]
   prompts.py          pinned > role template > excerpt-drafted resume prompts
   plan_secure.py      pure: roster → stand-down Plan (detach|park|fold|dismiss|host)
