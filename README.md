@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/watchbill-logo-512.png" alt="Watchbill: a duck with a deerstalker and a magnifying glass" width="220">
+</p>
+
 # Watchbill
 
 **Keep a fleet of long-running coding agents alive across restarts, upgrades
