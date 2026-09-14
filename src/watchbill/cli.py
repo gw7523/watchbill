@@ -279,12 +279,36 @@ def cmd_secure(args) -> int:
     return _run_plan(args, fleet, plan_secure.plan_secure(ro, fleet, opts), ro)
 
 
+def set_source(current: Path, from_roster: Path | None = None) -> tuple[Path, str | None]:
+    """Which roster `set` falls in from. `current.json` is retargeted by the
+    post-secure snap, and by then the parked agents are plain shells in it:
+    a `set` from that file restores nothing (Mac tmux, 2026-09-14). So when
+    the current roster is a post-secure one and no `--from` was given, use
+    the newest pre-secure roster next to it — the shape to fall back in to."""
+    if from_roster:
+        return Path(from_roster), None
+    if not current.exists():
+        return current, None
+    try:
+        reason = json.loads(current.read_text()).get("reason")
+    except (ValueError, OSError):
+        reason = None
+    if reason != "post-secure":
+        return current, None
+    pre = sorted(current.parent.glob("*-pre-secure.json"))
+    if not pre:
+        return current, "current.json is a post-secure roster and no pre-secure roster exists; nothing to restore"
+    return pre[-1], f"current.json is the post-secure roster; falling in from {pre[-1].name} (pass --from to choose)"
+
+
 def cmd_set(args) -> int:
     fleet = _fleet(args)
-    src = args.from_roster or paths.current_roster(fleet.name)
+    src, why = set_source(paths.current_roster(fleet.name), args.from_roster)
     if not src.exists():
         print(f"no roster at {src}; run `watchbill snap` first", file=sys.stderr)
         return exitcodes.USAGE
+    if why:
+        print(why)
     ro = _roster.load(src)
     cockpit_host, self_pane = _cockpit(fleet)
     opts = plan_set.SetOptions(targets=args.targets, host=args.host, no_prompt=args.no_prompt,

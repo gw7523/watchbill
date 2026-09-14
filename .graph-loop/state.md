@@ -208,4 +208,7 @@ ADVERSARY=grok-build bridge write-mode run with the Reviewer brief (house overla
 - Then (owner): README rewritten as a release document (problem statement, support matrix, upgrade examples across
   herdr/tmux/cmux hosts), CHANGELOG 0.1.0, version 0.1.0, personal identifiers scrubbed from tests/fixtures/docs.
 - Still unverified: `brew upgrade --cask cmux`; non-Claude agents under cmux hooks; gemini/cursor anywhere.
+- tmux on the Mac's GUI-started default server: throwaway Claude logged in (keychain), `secure park` + `set` green
+  (`--continue`, codeword recalled). Found: after a park, current.json is the post-secure roster (agents = shells) so a
+  plain `set` restored nothing → `set` now falls in from the newest pre-secure roster (cli.set_source, tested).
 

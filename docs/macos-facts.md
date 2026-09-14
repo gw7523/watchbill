@@ -30,3 +30,14 @@ without a password over ssh, agent hooks as the native status source, the
 quit that needs `app.confirmQuit = "never"`, and the relaunch (`open -a
 cmux` from ssh) that restores workspaces and resumes the agents itself.
 Verified twice end to end through `watchbill relieve restart-harness`.
+
+## tmux from the desktop session (2026-09-14)
+
+A tmux server started from a GUI terminal on the Mac (the owner's default
+server) gives its agents the login keychain: a throwaway Claude in a new
+session on that server showed `Claude Max`, and after `watchbill secure park`
+plus `watchbill set` it came back on `claude --model haiku --continue`, still
+logged in, and recalled the codeword. The same cycle on a server started over
+ssh (`tmux -L wbmac`) resumes a `Not logged in` agent. `hosts.toml` for such a
+host: `mux = "tmux"`, `sessions = ["default"]` (the default socket name).
+

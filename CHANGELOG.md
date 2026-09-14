@@ -25,5 +25,7 @@ First release that has run every mutating verb against real agents.
 - **Guards:** exclude / ignore globs, occupant-count guard on `current.json`,
   never an unplanned server stop, never a key typed into a blocked agent,
   Claude Remote Control detected before a park.
+- **`set` after `secure park`** falls in from the pre-park roster by default
+  (the post-park roster lists the parked agents as shells).
 - **cmux:** native agent detection, status and session ids from cmux's agent
   hooks; scripted quit and relaunch; the app's own resume is waited for.

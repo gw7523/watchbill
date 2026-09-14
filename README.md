@@ -154,6 +154,7 @@ watchbill snap -m manual               # write the first roster
 watchbill secure park                  # dry-run: what would be parked, what is refused and why
 watchbill secure park --yes            # park every idle agent on every target host
 watchbill set --yes                    # bring them all back, each on its own conversation
+                                       # (falls in from the roster taken before the park)
 ```
 
 Targets for `secure` and `set` are a `slot_id`, a full `human_id`, or a label
